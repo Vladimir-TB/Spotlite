@@ -5,6 +5,10 @@ Overview
 --------
 SpotLite is refreshed to Qt 5.15.2 with Qt WebEngine. You get a modern rendering stack, light/dark UI, improved encoding (UTF-8 with cp1252 fallback), and a GUI-linked Windows build without a console window. Skins still work; the default skin is `standaard` with the light theme. WebEngine resources and the MSVC runtime should live next to the executable.
 
+Overzicht (NL)
+--------------
+SpotLite is opgefrist naar Qt 5.15.2 met Qt WebEngine. Je krijgt een modernere rendering stack, licht/donker UI, betere encoding (UTF-8 met cp1252 fallback) en een GUI-build zonder consolevenster. Skins blijven werken; standaard staat de skin `standaard` en het lichte thema aan. WebEngine resources en de MSVC-runtime moeten naast de executable staan.
+
 Highlights
 - QtWebEngine instead of Qt4/WebKit (better security and compatibility).
 - Light and dark themes; menu bar adjusted for dark UI.
