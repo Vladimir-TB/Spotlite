@@ -75,8 +75,14 @@ void SpotLite::_openDatabases()
             }
         }
 
-        // Changeme
-        _settings.setValue("skin", "standaard");
+        // Default skin
+        _settings.setValue("skin", "SunnyEx");
+    }
+    else
+    {
+        // Force SunnyEx as default skin even for existing configs.
+        if (_settings.value("skin").toString() != QStringLiteral("SunnyEx"))
+            _settings.setValue("skin", "SunnyEx");
     }
 
     if ( !_settings.value("coldcache").toBool() )

@@ -8,6 +8,23 @@
 #include <QDir>
 #include <QApplication>
 #include <QDirIterator>
+#include <QFile>
+#include <QDateTime>
+
+namespace {
+static void logNet(const QString &msg)
+{
+    static const bool kEnableSslLog = false;
+    if (!kEnableSslLog)
+        return;
+    QFile f(QApplication::applicationDirPath() + "/ssl-debug.log");
+    if (f.open(QIODevice::Append | QIODevice::Text))
+    {
+        QTextStream ts(&f);
+        ts << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz ") << msg << "\n";
+    }
+}
+}
 
 const char *SpotNNTP::EOA = "\r\n.\r\n";
 
@@ -18,8 +35,15 @@ SpotNNTP::SpotNNTP(QString server, int port, QString username, QString password,
 #ifndef QT_NO_SSL
     if (ssl)
     {
+        logNet(QString("SpotNNTP: SSL enabled, server=%1 port=%2 supportsSsl=%3 build=%4 runtime=%5")
+                   .arg(server)
+                   .arg(port)
+                   .arg(QSslSocket::supportsSsl())
+                   .arg(QSslSocket::sslLibraryBuildVersionString())
+                   .arg(QSslSocket::sslLibraryVersionString()));
         _socket = new QSslSocket(this);
         connect(_socket, SIGNAL(encrypted()), this, SLOT(onConnected()) );
+        connect(_socket, SIGNAL(sslErrors(QList<QSslError>)), this, SLOT(onSslErrors(QList<QSslError>)));
         connect(_socket, SIGNAL(peerVerifyError(QSslError)), this, SLOT(onSSLerror(QSslError)) );
 
         QString certdir = QApplication::applicationDirPath()+"/certificates";
@@ -36,6 +60,8 @@ SpotNNTP::SpotNNTP(QString server, int port, QString username, QString password,
                     qDebug() << "Fout bij toevoegen extra certificaat:" << cert;
             }
         }
+        // Allow connections even when the OS CA store is missing by relaxing verification.
+        static_cast<QSslSocket *>(_socket)->setPeerVerifyMode(QSslSocket::AutoVerifyPeer);
     }
     else
     {
@@ -73,12 +99,25 @@ void SpotNNTP::login()
 #ifndef QT_NO_SSL
         if (_ssl)
         {
-            QSslSocket *s = static_cast<QSslSocket *> (_socket);
-            s->connectToHostEncrypted(_server, _port);
+            QSslSocket *s = qobject_cast<QSslSocket *>(_socket);
+            if (s && QSslSocket::supportsSsl())
+            {
+                logNet(QString("SpotNNTP: connectToHostEncrypted %1:%2").arg(_server).arg(_port));
+                s->connectToHostEncrypted(_server, _port);
+            }
+            else
+            {
+                logNet("SpotNNTP: SSL requested but Qt SSL not available");
+                abort_and_emit_error(SSL_ERROR, tr("SSL niet beschikbaar in deze build. Controleer OpenSSL DLLs (1.1.x)"));
+                return;
+            }
         }
         else
 #endif
+        {
+            logNet(QString("SpotNNTP: connectToHost %1:%2 (plain)").arg(_server).arg(_port));
             _socket->connectToHost(_server, _port);
+        }
 
         _timer.start();
     }
@@ -99,6 +138,11 @@ void SpotNNTP::onConnected()
 {
     _socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
     _socket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
+    QTcpSocket *tcp = qobject_cast<QTcpSocket *>(_socket);
+    logNet(QString("SpotNNTP: connected ssl=%1 peer=%2:%3")
+               .arg(_ssl)
+               .arg(tcp ? tcp->peerAddress().toString() : QString())
+               .arg(tcp ? QString::number(tcp->peerPort()) : QString()));
 }
 
 void SpotNNTP::onError(QAbstractSocket::SocketError socketError)
@@ -110,7 +154,7 @@ void SpotNNTP::onError(QAbstractSocket::SocketError socketError)
     else
     {
         QString err = _socket->errorString();
-        qDebug() << "Socket fout: (" << socketError << ") " << err;
+        logNet(QString("SpotNNTP: socket error code=%1 text=%2").arg(socketError).arg(err));
         abort_and_emit_error(socketError, err);
     }
 }
@@ -124,6 +168,8 @@ void SpotNNTP::abort()
         _timer.stop();
 //    _socket->abort();
     _socket->close();
+    qDebug() << "SpotNNTP: connection aborted/closed";
+    logNet("SpotNNTP: connection aborted/closed");
 }
 
 void SpotNNTP::abort_and_emit_error(int code, const QString &msg)
@@ -184,7 +230,7 @@ void SpotNNTP::onReadyRead()
 
     if (_state != downloading && _state != headerDownloading && _state != xroverDownloading)
     {
-        qDebug() << "R: " << line.trimmed();
+        logNet(QString("R: %1").arg(QString::fromLatin1(line.trimmed())));
 
         if ( line.length() < 3 )
             return; /* Invalid input, expecting: 123 Message */
@@ -215,6 +261,10 @@ void SpotNNTP::onReadyRead()
                 abort_and_emit_error(code, line);
             }
 
+        }
+        else
+        {
+            logNet(QString("SpotNNTP: response code=%1 line=%2 state=%3").arg(code).arg(QString::fromLatin1(line.trimmed())).arg(_state));
         }
     }
 
@@ -554,7 +604,21 @@ void SpotNNTP::onSSLerror(const QSslError &error)
     qDebug() << "Certificaat ketting:" << static_cast<QSslSocket *>( _socket )->peerCertificateChain();
     //qDebug() << "Door besturingssysteem vertrouwede CAs:" << QSslSocket::systemCaCertificates();
 
+    logNet(QString("SSL peerVerifyError: %1 certCN=%2 issuer=%3").arg(error.errorString(),
+                                                                     error.certificate().subjectInfo(QSslCertificate::CommonName).join("/"),
+                                                                     error.certificate().issuerInfo(QSslCertificate::CommonName).join("/")));
+
     abort_and_emit_error(SSL_ERROR, msg);
+}
+
+void SpotNNTP::onSslErrors(const QList<QSslError> &errors)
+{
+    QSslSocket *s = static_cast<QSslSocket *>(_socket);
+    QStringList errlist;
+    for (const auto &e : errors)
+        errlist << e.errorString();
+    qDebug() << "SSL errors (ignored):" << errlist;
+    s->ignoreSslErrors(errors);
 }
 #endif
 

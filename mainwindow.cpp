@@ -87,17 +87,11 @@ MainWindow::MainWindow(QWidget *parent) :
 
     model = new SpotsModel(sl, this);
     ui->tableView->setModel(model);
-    ui->imagelist->setSpotLite(sl);
-    ui->imagelist->setModel(model);
-    connect(ui->imagelist, SIGNAL(spotOpened(int,QString)), this, SLOT(openSpot(int,QString)));
-
-    //ui->listView->setModel(model);
-
     QHeaderView *h = ui->tableView->horizontalHeader();
     h->setStretchLastSection(false);
     h->setSectionResizeMode(2, QHeaderView::Stretch);
     ui->tableView->setColumnWidth(0, 120);
-    ui->tableView->setColumnWidth(1, 50);
+    ui->tableView->setColumnWidth(1, 80);
 
     //ui->listView->setModelColumn(2);
 
@@ -108,9 +102,12 @@ MainWindow::MainWindow(QWidget *parent) :
         s->setValue("ui/theme", "light");
         s->setValue("ui/theme.migrated2026", true);
     }
+    // Force SunnyEx as default/migrated skin
     if (!s->value("ui/skin.migrated2026b", false).toBool()) {
-        s->setValue("skin", "standaard");
+        s->setValue("skin", "SunnyEx");
         s->setValue("ui/skin.migrated2026b", true);
+    } else if (s->value("skin").toString().isEmpty()) {
+        s->setValue("skin", "SunnyEx");
     }
 
     applyTheme( s->value("ui/theme", "light").toString() );
@@ -675,10 +672,6 @@ void MainWindow::on_zoekButton_clicked()
     ui->tabWidget->setCurrentIndex(0);
     ui->tableView->scrollToTop();
 
-    ui->imagelist->setIndex(0);
-    if ( ui->tabWidget_2->currentIndex() == 1)
-        ui->imagelist->refresh();
-
     onNotice(0, tr("%1 resultaten voor zoekopdracht '%2'").arg( QString::number( model->rowCount(QModelIndex()) ), q) );
     QApplication::restoreOverrideCursor();
 //    qDebug() << "s2 in" << (timer.elapsed() / 1000.0) << "secs";
@@ -855,9 +848,6 @@ void MainWindow::on_treeWidget_currentItemChanged(QTreeWidgetItem* current, QTre
     ui->tabWidget->setTabText(0, catname);
     ui->tabWidget->setCurrentIndex(0);
     ui->tableView->scrollToTop();
-    ui->imagelist->setIndex(0);
-    if ( ui->tabWidget_2->currentIndex() == 1)
-        ui->imagelist->refresh();
     onNotice(0, tr("%1 resultaten in categorie '%2'").arg( QString::number( model->rowCount(QModelIndex()) ), catname) );
 }
 
@@ -913,12 +903,12 @@ void MainWindow::setFonts()
         int iconwidth = model->iconWidth();
         if (iconwidth)
         {
-            ui->tableView->setColumnWidth(1, iconwidth+8);
+            ui->tableView->setColumnWidth(1, qMax(80, iconwidth + 12));
         }
         else
         {
             w = fm.width("LINUX");
-            ui->tableView->setColumnWidth(1, qMax(50, w));
+            ui->tableView->setColumnWidth(1, qMax(80, w));
         }
 
         sf.fromString( s->value("spotfont").toString() );
@@ -1292,14 +1282,6 @@ void MainWindow::on_updateButton_clicked()
     QApplication::processEvents();
     sl->processNewSpots();
     QApplication::restoreOverrideCursor();
-}
-
-void MainWindow::on_tabWidget_2_currentChanged(int index)
-{
-    if (index == 1)
-    {
-        ui->imagelist->refresh();
-    }
 }
 
 void MainWindow::openSpot(int id, const QString &title)

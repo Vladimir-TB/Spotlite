@@ -127,8 +127,6 @@ mac:RC_FILE += \
     res/icon.icns
 QMAKE_INFO_PLIST = spotlite.plist
 
-QMAKE_CXXFLAGS+=-g
-
 OTHER_FILES += \
     res/spot.tpl \
     res/comment.tpl \

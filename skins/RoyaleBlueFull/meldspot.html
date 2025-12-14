@@ -1,0 +1,18 @@
+<html>
+<head>
+<style>	table, tr, td {
+		font-family: Arial;
+		color: #CE0000;
+		font-weight: bold;
+		font-size: 11px;
+		vertical-align: top;
+	}</style>
+</head>
+<body>
+<form method=POST action="http://www.spot-net.nl/add-ons/spamremover/meldspot.php"><input type=hidden name=spot id=spot value=""><table><tr><td>Reden<td><input type=text name=reden><td><input type=submit value="Meld spot"></form></table>
+<script>
+hu = window.location.search.substring(1);
+document.getElementById('spot').value = hu
+</script>
+</body>
+</html>

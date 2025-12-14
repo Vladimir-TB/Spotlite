@@ -29,7 +29,7 @@ UISettingsDialog::UISettingsDialog(QSettings *s, const QString &skinToSelect, QW
 
     QString currentskin = skinToSelect;
     if ( currentskin.isEmpty() )
-        currentskin = _s->value("skin", "standaard").toString();
+        currentskin = _s->value("skin", "SunnyEx").toString();
     QString skinpath = MainWindow::skinFolder();
 
     QDirIterator iter(skinpath, QDir::Dirs | QDir::NoDotAndDotDot );

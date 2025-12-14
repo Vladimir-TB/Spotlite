@@ -10,8 +10,11 @@
 
       .thumbnail img{
       border: 1px solid white;
-      margin: 0 5px 5px 0;
+      margin: 0 8px 8px 0;
       vertical-align: middle;
+      max-width: 180px;
+      max-height: 180px;
+      object-fit: contain;
       }
 
       .thumbnail:hover{
@@ -37,6 +40,9 @@
       border: 0;
       border-width: 0;
       padding: 2px;
+      max-width: 340px;
+      max-height: 340px;
+      object-fit: contain;
       }
 
       .thumbnail:hover span{ /*CSS for enlarged image*/
@@ -51,7 +57,7 @@
       {
         var orig_width  = i.width;
         var orig_height = i.height;
-        var max_size    = 200;
+        var max_size    = 180;
 
         if (i.width > i.height)
         {
@@ -83,7 +89,7 @@
       {
         var orig_width  = i.width;
         var orig_height = i.height;
-        var max_size    = 400;
+        var max_size    = 340;
 
         if (i.width > i.height)
         {

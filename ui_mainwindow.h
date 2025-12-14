@@ -29,7 +29,6 @@
 #include <QtWidgets/QTableView>
 #include <QtWidgets/QTreeWidget>
 #include <QtWidgets/QWidget>
-#include "spotimagelist.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -64,9 +63,6 @@ public:
     QWidget *tab_2;
     QHBoxLayout *horizontalLayout_3;
     QTableView *tableView;
-    QWidget *tab_3;
-    QHBoxLayout *horizontalLayout_4;
-    SpotImageList *imagelist;
     QMenuBar *menuBar;
     QMenu *menuProgramma;
     QMenu *menuOpties;
@@ -234,19 +230,6 @@ public:
         horizontalLayout_3->addWidget(tableView);
 
         tabWidget_2->addTab(tab_2, QString());
-        tab_3 = new QWidget();
-        tab_3->setObjectName(QString::fromUtf8("tab_3"));
-        horizontalLayout_4 = new QHBoxLayout(tab_3);
-        horizontalLayout_4->setSpacing(6);
-        horizontalLayout_4->setContentsMargins(11, 11, 11, 11);
-        horizontalLayout_4->setObjectName(QString::fromUtf8("horizontalLayout_4"));
-        horizontalLayout_4->setContentsMargins(0, 0, 0, 0);
-        imagelist = new SpotImageList(tab_3);
-        imagelist->setObjectName(QString::fromUtf8("imagelist"));
-
-        horizontalLayout_4->addWidget(imagelist);
-
-        tabWidget_2->addTab(tab_3, QString());
 
         horizontalLayout_2->addWidget(tabWidget_2);
 
@@ -295,7 +278,7 @@ public:
 
     void retranslateUi(QMainWindow *MainWindow)
     {
-        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "Spotlite Release 2026", nullptr));
+        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "Spotlite Release 3.0", nullptr));
         actionConfiguratie->setText(QCoreApplication::translate("MainWindow", "Configuratie", nullptr));
         actionAfsluiten->setText(QCoreApplication::translate("MainWindow", "Afsluiten", nullptr));
         actionOver_SpotLite->setText(QCoreApplication::translate("MainWindow", "Over SpotLite", nullptr));
@@ -343,7 +326,6 @@ public:
         onlycat_checkbox->setText(QCoreApplication::translate("MainWindow", "Binnen categorie zoeken", nullptr));
         updateButton->setText(QCoreApplication::translate("MainWindow", "Update", nullptr));
         tabWidget_2->setTabText(tabWidget_2->indexOf(tab_2), QCoreApplication::translate("MainWindow", "Lijst", nullptr));
-        tabWidget_2->setTabText(tabWidget_2->indexOf(tab_3), QCoreApplication::translate("MainWindow", "Plaatjes", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab), QCoreApplication::translate("MainWindow", "Nieuw", nullptr));
         menuProgramma->setTitle(QCoreApplication::translate("MainWindow", "Programma", nullptr));
         menuOpties->setTitle(QCoreApplication::translate("MainWindow", "Opties", nullptr));

@@ -5,6 +5,8 @@
 #include <QString>
 #include <QtNetwork/QTcpSocket>
 #include <QtNetwork/QSslSocket>
+#include <QtNetwork/QSslError>
+#include <QList>
 #include <QTimer>
 
 class YencMemDecoder;
@@ -76,6 +78,7 @@ protected slots:
     void onTimeout();
 
 #ifndef QT_NO_SSL
+    void onSslErrors(const QList<QSslError> &errors);
     void onSSLerror(const QSslError &errors);
 #endif
 };

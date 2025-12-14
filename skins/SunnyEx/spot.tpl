@@ -129,7 +129,7 @@
       description = description.replace(/<br>\?/ig, '<br>&bull; '); // bullet ipv ?
       description = description.replace(/(<br>\s*){5,}/ig, '<br><br><br><br>'); // max 4 breaks
       if (description === "") {
-        description = 'Gegevens niet beschikbaar in spotlite!<br><br>Kijk op <a href="' + nzbserver03 + '/#/?page=getspot&messageid=' + encodeURIComponent('{msgid}') + '" class="nzbserver-url">NZBServer</a> voor de spotinformatie,<br><br>of download de spot met de nzb knopppen.'; // nzb server
+        description = 'Gegevens niet beschikbaar in spotlite!<br><br>Kijk op <a href="' + nzbserver03 + '/#/?page=getspot&messageid=' + encodeURIComponent('{msgid}') + '" class="nzbserver-url">NZBServer</a> voor de spotinformatie,<br><br>of download de spot met de NZB-knop.'; // nzb server
       }
       document.getElementById("description").innerHTML = description;
     }
@@ -191,51 +191,31 @@
       return buttonsHtml;
     }
 
-    // Create toolbars
+    // Create toolbars (keep NZB + Google/YouTube/IMDb/Spotlink)
     function createToolbars() {
-      var strUrl = cleanTitle();
-      var nzbSearch = "{firstfile}";
       var toolbarTop = document.getElementById("toolbar-top");
       var toolbarInfo = document.getElementById("toolbar-info");
 
-      if (!nzbSearch) {
-        return;
-      }
-
-      var pos = nzbSearch.lastIndexOf('.');
-      if (pos != -1)  {
-        nzbSearch = nzbSearch.substr(0, pos);
-        if (nzbSearch.toLowerCase().indexOf(".part") != -1 || nzbSearch.toLowerCase().indexOf(".vol") != -1) {
-          nzbSearch = nzbSearch.substr(0, nzbSearch.lastIndexOf('.'));
-        }
-      }
-      // urls binsearch, nzbindex, and nzbking
-     var webSites = NzbSearchButtons(nzbSearch);
-      // urls  spotweb servers
-      webSites += '<a href="' + nzbserver01 + '/?page=getnzb&action=display&messageid=' + encodeURIComponent('{msgid}') + '" class="spotweb-nzb" title="' + nzbserver01 + '/">NZB</a>';
-      webSites += '<a href="' + nzbserver02 + '/?page=getnzb&action=display&messageid=' + encodeURIComponent('{msgid}') + '" class="spotweb-nzb" title="' + nzbserver02 + '/">NZB</a>';
-      // urls google, youtube, imdb and moviemeter
-      webSites += ('<a href="https://www.google.nl/search?q=' + strUrl + '" class="media-url">Google</a>');
-      if ((category === "1" &&  subCategory !== "105") || category === "2") {
-      webSites += ('<a href="https://www.youtube.com/results?search_query=' + strUrl + '" class="media-url">YouTube</a>');
-      }
+      var strUrl = cleanTitle();
+      var webSitesTop = '';
+      webSitesTop += '<a href="action:downloadnzb" class="spotweb-nzb" title="Download NZB binnen SpotLite">NZB</a>';
+      webSitesTop += ('<a href="https://www.google.nl/search?q=' + strUrl + '" class="media-url">Google</a>');
+      webSitesTop += ('<a href="https://www.youtube.com/results?search_query=' + strUrl + '" class="media-url">YouTube</a>');
       if (!imdbLink) {
         imdbLink = ('http://www.imdb.com/find?s=tt&q=' + strUrl);
       }
-      if (category === "1" &&  subCategory !== "105") {
-        webSites += ('<a href="' + imdbLink + '" class="media-url">IMDb</a>');
-      }
-      if (!mmLink) {
-        mmLink = ('https://www.google.nl/search?q=' + strUrl + ' moviemeter');
-      }
-      if (category === "1" &&  subCategory !== "105" && '{categories}'.indexOf("TV Series") === -1) {
-        webSites += ('<a href="' + mmLink + '" class="media-url" title="MovieMeter">MM</a>');
-      }
-	  webSites += '<a href="#" class="check-version" onclick="CopySpotLink()" title="Spotlink kopi&#235;ren">Spotlink</a>';
-	  webSites += '<a href="#" class="check-version" onclick="checkForUpdates()" title="Controleer of er updates zijn.">Updates</a>';
-      
-      toolbarTop.innerHTML = webSites;
-      toolbarInfo.innerHTML = webSites;
+      webSitesTop += ('<a href="' + imdbLink + '" class="media-url">IMDb</a>');
+      webSitesTop += '<a href="#" class="check-version" onclick="CopySpotLink()" title="Spotlink kopi&#235;ren">Spotlink</a>';
+
+      // Tweede toolbar zonder NZB om dubbele knoppen te vermijden
+      var webSitesInfo = '';
+      webSitesInfo += ('<a href="https://www.google.nl/search?q=' + strUrl + '" class="media-url">Google</a>');
+      webSitesInfo += ('<a href="https://www.youtube.com/results?search_query=' + strUrl + '" class="media-url">YouTube</a>');
+      webSitesInfo += ('<a href="' + imdbLink + '" class="media-url">IMDb</a>');
+      webSitesInfo += '<a href="#" class="check-version" onclick="CopySpotLink()" title="Spotlink kopi&#235;ren">Spotlink</a>';
+
+      toolbarTop.innerHTML = webSitesTop;
+      toolbarInfo.innerHTML = webSitesInfo;
     }
     createToolbars();
 

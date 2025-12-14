@@ -10,9 +10,9 @@
     <height>600</height>
    </rect>
   </property>
-  <property name="windowTitle">
-   <string>Spotlite Release 2026</string>
-  </property>
+   <property name="windowTitle">
+    <string>Spotlite Release 3.0</string>
+   </property>
   <property name="windowIcon">
    <iconset resource="res/icons.qrc">
     <normaloff>:/icons/icon.png</normaloff>:/icons/icon.png</iconset>
@@ -306,28 +306,6 @@
              </item>
             </layout>
            </widget>
-           <widget class="QWidget" name="tab_3">
-            <attribute name="title">
-             <string>Plaatjes</string>
-            </attribute>
-            <layout class="QHBoxLayout" name="horizontalLayout_4">
-             <property name="leftMargin">
-              <number>0</number>
-             </property>
-             <property name="topMargin">
-              <number>0</number>
-             </property>
-             <property name="rightMargin">
-              <number>0</number>
-             </property>
-             <property name="bottomMargin">
-              <number>0</number>
-             </property>
-             <item>
-              <widget class="SpotImageList" name="imagelist" native="true"/>
-             </item>
-            </layout>
-           </widget>
           </widget>
          </item>
         </layout>
@@ -439,14 +417,6 @@
   </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <customwidgets>
-  <customwidget>
-   <class>SpotImageList</class>
-   <extends>QWidget</extends>
-   <header>spotimagelist.h</header>
-   <container>1</container>
-  </customwidget>
- </customwidgets>
  <resources>
   <include location="res/icons.qrc"/>
  </resources>

@@ -37,7 +37,7 @@ protected:
 };
 
 SpotImageList::SpotImageList(QWidget *parent) :
-    QWidget(parent), _index(0), _total(0), _pagesize(16), _sl(NULL), _model(NULL)
+    QWidget(parent), _index(0), _total(0), _pagesize(25), _sl(NULL), _model(NULL)
 {
     /* Templates */
     QString path = ":/tpl";
@@ -137,6 +137,7 @@ void SpotImageList::updateHTML()
         return;
 
     QByteArray itemshtml, item, html = _mainTemplate;
+    int appended = 0;
 
     foreach (_SpotImageListItem *sil, _itemlist)
     {
@@ -144,7 +145,7 @@ void SpotImageList::updateHTML()
         QByteArray imgdata = _toHTML(sil->imageurl() );
         if ( imgdata.length() < 4 )
         {
-            imgdata = "";
+            continue; // sla items zonder beeld over
         }
 
         item.replace("{spotid}", QByteArray::number(sil->id() ));
@@ -152,7 +153,11 @@ void SpotImageList::updateHTML()
         item.replace("{imagedata}", imgdata);
 
         itemshtml += item;
+        appended++;
     }
+
+    if (appended == 0)
+        itemshtml = "<div style=\"padding:10px;color:#666;\">Geen afbeeldingen beschikbaar op deze pagina.</div>";
 
     html.replace("{items}", itemshtml);
     // Forceer UTF-8 rendering

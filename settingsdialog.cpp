@@ -2,6 +2,7 @@
 #include "ui_settingsdialog.h"
 #include <QSettings>
 #include <QMessageBox>
+#include <QIcon>
 
 SettingsDialog::SettingsDialog(QSettings *qs, QWidget *parent) :
     QDialog(parent),
@@ -9,6 +10,7 @@ SettingsDialog::SettingsDialog(QSettings *qs, QWidget *parent) :
     s(qs)
 {
     ui->setupUi(this);
+    setWindowIcon(QIcon(QStringLiteral(":/icons/icon.ico")));
 
     if (s->value("port").isValid() )
     {
@@ -133,10 +135,16 @@ void SettingsDialog::on_imagesCheck_clicked(bool checked)
 
 void SettingsDialog::on_sslBox_clicked(bool checked)
 {
+    // Typical SSL NNTP port is 563; non-SSL is 119.
     if (checked)
-        ui->portEdit->setText("443");
-    else if (ui->portEdit->text() == "443" || ui->portEdit->text() == "563")
+    {
+        if (ui->portEdit->text().trimmed().isEmpty() || ui->portEdit->text() == "119")
+            ui->portEdit->setText("563");
+    }
+    else if (ui->portEdit->text() == "563" || ui->portEdit->text() == "443")
+    {
         ui->portEdit->setText("119");
+    }
 }
 
 void SettingsDialog::on_meteenTonenRadio_toggled(bool checked)

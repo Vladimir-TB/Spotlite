@@ -56,7 +56,6 @@ protected:
 
 private slots:
     void on_actionDonker_thema_toggled(bool checked);
-    void on_tabWidget_2_currentChanged(int index);
     void on_updateButton_clicked();
     void on_actionDatabase_exporteren_triggered();
     void on_actionDatabase_importeren_triggered();

@@ -14,11 +14,15 @@
 #include <QToolBar>
 #include <QToolButton>
 #include <QIcon>
+#include <QDir>
 #include <QDirIterator>
 #include <QAction>
 #include <QFileDialog>
 #include <QMenu>
 #include <QMessageBox>
+#include <QUrlQuery>
+#include <QNetworkReply>
+#include <QStandardPaths>
 #include <QWebEngineView>
 #include <QWebEnginePage>
 #include <QWebEngineProfile>
@@ -154,6 +158,11 @@ SpotView::SpotView(SpotLite *sl, QTabWidget *tw, int spotid, const QString &titl
         button1->setChecked(_sl->isOnWatchlist(_spotid));
     /*    if (spotid < 0)
             button1->setEnabled(false); */
+        _nzbButton = new QToolButton(toolbar);
+        _nzbButton->setIcon(QIcon(":/icons/resultset_next.png"));
+        _nzbButton->setText("Download NZB");
+        _nzbButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        _nzbButton->setEnabled(false);
         QToolButton *button2 = new QToolButton(toolbar);
         button2->setIcon(_replyIcon);
         button2->setText("Reactie plaatsen");
@@ -162,6 +171,7 @@ SpotView::SpotView(SpotLite *sl, QTabWidget *tw, int spotid, const QString &titl
         button3->setIcon(_deleteIcon);
         button3->setText("Verwijderen");
         button3->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        toolbar->addWidget(_nzbButton);
         toolbar->addWidget(button1);
         toolbar->addWidget(button2);
         toolbar->addWidget(button3);
@@ -175,6 +185,7 @@ SpotView::SpotView(SpotLite *sl, QTabWidget *tw, int spotid, const QString &titl
         connect(button1, SIGNAL(toggled(bool)), this, SLOT(onWatchlistToggle(bool)));
         connect(button2, SIGNAL(clicked()), this, SLOT(onReply()));
         connect(button3, SIGNAL(clicked()), this, SLOT(onDeleteSpot()));
+        connect(_nzbButton, SIGNAL(clicked()), this, SLOT(onDownloadNZB()));
         /* ---- */
         _tw->addTab(/*_web*/ _widget, _title.replace("&", "&&") );
     }
@@ -316,7 +327,66 @@ void SpotView::onArticleData(const QByteArray &msgid, QByteArray data)
     }
     else if (msgid == _nzbMSGID)
     {
-        if (_decodeNZB(data))
+        const bool decoded = _decodeNZB(data);
+
+        if (_nzbSaveRequested)
+        {
+            _nzbSaveRequested = false;
+
+            if (_lastNzbData.isEmpty())
+            {
+                QMessageBox::warning(_widget,
+                                     tr("NZB opslaan mislukt"),
+                                     tr("Geen NZB-data beschikbaar om op te slaan."));
+            }
+            else
+            {
+                QString baseName;
+                if (!_filenames.isEmpty())
+                    baseName = _filenames.first();
+                else
+                    baseName = _title;
+
+                if (baseName.isEmpty())
+                    baseName = QStringLiteral("spotlite");
+
+                const QString forbidden = QStringLiteral("\\/:*?\"<>|@");
+                for (const QChar &ch : forbidden)
+                    baseName.replace(ch, QChar('_'));
+                if (!baseName.endsWith(".nzb", Qt::CaseInsensitive))
+                    baseName += ".nzb";
+
+                QString defaultDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+                if (defaultDir.isEmpty())
+                    defaultDir = QDir::homePath();
+                const QString defaultPath = defaultDir + "/" + baseName;
+
+                const QString savePath = QFileDialog::getSaveFileName(_widget,
+                                                                      tr("NZB opslaan"),
+                                                                      defaultPath,
+                                                                      tr("NZB Files (*.nzb);;All Files (*)"));
+                if (!savePath.isEmpty())
+                {
+                    QFile f(savePath);
+                    if (f.open(QIODevice::WriteOnly))
+                    {
+                        f.write(_lastNzbData);
+                        f.close();
+                        QMessageBox::information(_widget,
+                                                 tr("NZB opgeslagen"),
+                                                 tr("NZB opgeslagen als:\n%1").arg(savePath));
+                    }
+                    else
+                    {
+                        QMessageBox::warning(_widget,
+                                             tr("NZB opslaan mislukt"),
+                                             tr("Kan bestand niet schrijven:\n%1").arg(savePath));
+                    }
+                }
+            }
+        }
+
+        if (decoded)
             _updateHTML();
     }
     else if (msgid == _imgMSGID)
@@ -533,6 +603,7 @@ bool SpotView::_parseSpot(const QByteArray &data)
     bool has_signature = false;
 
     qDebug() << "Headers:" << headerlines;
+    _nzbMSGID.clear();
 
     foreach (QByteArray line, headerlines)
     {
@@ -651,6 +722,8 @@ bool SpotView::_parseSpot(const QByteArray &data)
     }
     else
         qDebug() << tr("Geen NZB referentie in spot informatie");
+    if (_nzbButton)
+        _nzbButton->setEnabled(!_nzbMSGID.isEmpty());
 
     if ( !_image.isEmpty() /*&& s.value("images").toBool()*/ )
     {
@@ -715,12 +788,118 @@ void SpotView::onLinkClick(const QUrl &url)
 {
     qDebug() << url;
     if (url.scheme() == "http" || url.scheme() == "https")
+    {
+        // API-driven NZB download: intercept Spotweb-style getnzb links
+        // Example: /?page=getnzb&action=display&messageid=...&apikey=...
+        QUrlQuery q(url);
+        const QString page = q.queryItemValue("page");
+        const QString action = q.queryItemValue("action");
+        if (page == "getnzb" && (action.isEmpty() || action == "display"))
+        {
+            // Determine default file name
+            QString msgid = q.queryItemValue("messageid");
+            if (msgid.isEmpty())
+                msgid = QStringLiteral("spotlite");
+
+            // Sanitize message-id to a safe filename
+            QString base = msgid;
+            base.replace("<", "");
+            base.replace(">", "");
+            base.replace("@", "_");
+            base.replace(":", "_");
+            base.replace("/", "_");
+            base.replace("\\", "_");
+            base.replace("?", "_");
+            base.replace("*", "_");
+            base.replace("\"", "_");
+            base.replace("|", "_");
+            base.replace(" ", "_");
+            if (!base.endsWith(".nzb", Qt::CaseInsensitive))
+                base += ".nzb";
+
+            const QString defaultDir = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+            const QString defaultPath = (defaultDir.isEmpty() ? QDir::homePath() : defaultDir) + "/" + base;
+
+            const QString savePath = QFileDialog::getSaveFileName(_widget,
+                                                                 tr("NZB opslaan"),
+                                                                 defaultPath,
+                                                                 tr("NZB Files (*.nzb);;All Files (*)"));
+            if (savePath.isEmpty())
+                return;
+
+            if (_activeNzbReply)
+            {
+                _activeNzbReply->abort();
+                _activeNzbReply->deleteLater();
+                _activeNzbReply.clear();
+            }
+
+            QNetworkRequest req(url);
+            req.setHeader(QNetworkRequest::UserAgentHeader, "SpotLite/1.0 (Qt)");
+            req.setRawHeader("Accept", "application/x-nzb, application/xml, */*");
+
+            _activeNzbReply = _apiNam.get(req);
+
+            connect(_activeNzbReply, &QNetworkReply::finished, this, [this, savePath]() {
+                QPointer<QNetworkReply> reply = _activeNzbReply;
+                _activeNzbReply.clear();
+                if (!reply)
+                    return;
+
+                const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+                if (reply->error() != QNetworkReply::NoError)
+                {
+                    QMessageBox::warning(_widget,
+                                         tr("NZB download mislukt"),
+                                         tr("Netwerkfout: %1\nHTTP status: %2")
+                                             .arg(reply->errorString())
+                                             .arg(status));
+                    reply->deleteLater();
+                    return;
+                }
+
+                const QByteArray body = reply->readAll();
+                reply->deleteLater();
+
+                if (body.isEmpty())
+                {
+                    QMessageBox::warning(_widget,
+                                         tr("NZB download mislukt"),
+                                         tr("Lege response ontvangen (HTTP %1)").arg(status));
+                    return;
+                }
+
+                QFile f(savePath);
+                if (!f.open(QIODevice::WriteOnly))
+                {
+                    QMessageBox::warning(_widget,
+                                         tr("NZB opslaan mislukt"),
+                                         tr("Kan bestand niet schrijven:\n%1").arg(savePath));
+                    return;
+                }
+                f.write(body);
+                f.close();
+
+                QMessageBox::information(_widget,
+                                         tr("NZB opgeslagen"),
+                                         tr("NZB opgeslagen als:\n%1").arg(savePath));
+            });
+
+            return;
+        }
+
+        // Normal web links: open in external browser
         QDesktopServices::openUrl(url);
+    }
     else if (url.scheme() == "action")
     {
         if (url.path() == "tag")
         {
             emit createTagFilter(_cat, _tag);
+        }
+        else if (url.path() == "downloadnzb")
+        {
+            onDownloadNZB();
         }
         else if (url.path() == "reportspot")
         {
@@ -813,6 +992,7 @@ bool SpotView::_decodeNZB(const QByteArray &data)
         return false;
     QByteArray _buf = data.mid(pos+4);*/
     QByteArray _buf = data;
+    _lastNzbData.clear();
 
     _buf.replace("\n..", "."); /* Todo: start of msg? */
     _buf.replace("\n", "");
@@ -830,6 +1010,7 @@ bool SpotView::_decodeNZB(const QByteArray &data)
     io.setStreamFormat(io.RawZipFormat);
     io.open(io.ReadOnly);
     QByteArray nzb = io.readAll();
+    _lastNzbData = nzb;
 //    qDebug() << "err" << io.errorString();
     io.close();
     b.close();
@@ -1120,6 +1301,19 @@ void SpotView::onWatchlistToggle(bool add)
         _sl->addToWatchlist(_spotid);
     else
         _sl->removeFromWatchlist(_spotid);
+}
+
+void SpotView::onDownloadNZB()
+{
+    if (_nzbMSGID.isEmpty())
+    {
+        QMessageBox::information(_widget, tr("NZB niet beschikbaar"), tr("Geen NZB referentie voor deze spot."));
+        return;
+    }
+
+    _nzbSaveRequested = true;
+    _sl->downloadArticle(_nzbMSGID, true);
+    emit notice(0, tr("NZB wordt opgehaald..."));
 }
 
 void SpotView::onReply()

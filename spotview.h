@@ -7,6 +7,8 @@
 #include <QList>
 #include <QSet>
 #include <QHash>
+#include <QNetworkAccessManager>
+#include <QPointer>
 #include "spotlite.h"
 
 class QWebEngineView;
@@ -14,6 +16,8 @@ class QWebEngineDownloadItem;
 class QUrl;
 class QWidget;
 class QIcon;
+class QNetworkReply;
+class QToolButton;
 
 class SpotView : public QObject
 {
@@ -36,6 +40,7 @@ public slots:
     void onLinkClick(const QUrl & url);
     void onWatchlistToggle(bool add);
     void onReply();
+    void onDownloadNZB();
     void onReport();
     void onNewComment(const QByteArray &msg);
     void onDeleteSpot();
@@ -45,6 +50,11 @@ public slots:
 protected:
     SpotLite *_sl;
     QWebEngineView *_web;
+
+    // Network manager for API-driven NZB downloads.
+    QNetworkAccessManager _apiNam;
+    QPointer<QNetworkReply> _activeNzbReply;
+    bool _nzbSaveRequested{false};
 
     QTabWidget *_tw;
     int _spotid, _cat, _subcat, _spotdate;
@@ -58,8 +68,10 @@ protected:
     QWidget *_widget;
     bool _useActionLinks, _requireValidSignature;
     QHash<QByteArray,QByteArray> _useridsAndNames;
+    QToolButton *_nzbButton{nullptr};
 
     QByteArray _mainTemplate, _commentTemplate;
+    QByteArray _lastNzbData;
 
     static QByteArray _glMainTemplate;
     static QByteArray _glCommentTemplate;
