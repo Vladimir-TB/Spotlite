@@ -8,8 +8,18 @@ QT       += core gui sql xmlpatterns widgets network webenginewidgets webchannel
 unix:LIBS += -lcrypto -lz
 win32:DEFINES += MONOLITHIC
 win32:QMAKE_LFLAGS_RELEASE += -Wl,--stack,8388608
-win32:INCLUDEPATH += C:/Users/William/Desktop/spotlite-master/vcpkg/installed/x64-windows/include
-win32:LIBS += -LC:/Users/William/Desktop/spotlite-master/vcpkg/installed/x64-windows/lib -llibssl -llibcrypto -lzlib
+VCPKG_ROOT = $$(VCPKG_ROOT)
+isEmpty(VCPKG_ROOT) {
+    VCPKG_ROOT = $$PWD/../vcpkg
+}
+
+win32:exists($$VCPKG_ROOT/installed/x64-windows/include/openssl/rsa.h) {
+    message(Using OpenSSL from $$VCPKG_ROOT)
+    INCLUDEPATH += $$VCPKG_ROOT/installed/x64-windows/include
+    LIBS += -L$$VCPKG_ROOT/installed/x64-windows/lib -llibssl -llibcrypto -lzlib
+} else {
+    message("Warning: OpenSSL (vcpkg) not found, please set VCPKG_ROOT")
+}
 win32:CONFIG += windows
 
 mac:LIBS  += -L/Developer/SDKs/MacOSX10.5.sdk/usr/lib
@@ -70,7 +80,8 @@ SOURCES += main.cpp\
     cachewarmer.cpp \
     spotreportwindow.cpp \
     dummyitemdelegate.cpp \
-    spotbrowser.cpp
+    spotbrowser.cpp \
+    nzbgetsettingsdialog.cpp
 
 HEADERS  += mainwindow.h \
     settingsdialog.h \
@@ -106,7 +117,8 @@ HEADERS  += mainwindow.h \
     cachewarmer.h \
     spotreportwindow.h \
     dummyitemdelegate.h \
-    spotbrowser.h
+    spotbrowser.h \
+    nzbgetsettingsdialog.h
 
 FORMS    += mainwindow.ui \
     settingsdialog.ui \
@@ -114,7 +126,8 @@ FORMS    += mainwindow.ui \
     uisettingsdialog.ui \
     filterdialog.ui \
     addressdialog.ui \
-    userdialog.ui
+    userdialog.ui \
+    nzbgetsettingsdialog.ui
 #    \ spotmobilesettings.ui
 
 RESOURCES += \

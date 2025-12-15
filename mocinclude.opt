@@ -1,0 +1,42 @@
+-IC:/Qt/5.15.2-msvc2019/mkspecs/win32-msvc
+-IC:/Users/YOURNAME/Desktop/spotlite-webengine
+-IC:/Users/YOURNAME/Desktop/spotlite-master/vcpkg/installed/x64-windows/include
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtwebengine/include
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtwebengine/include/QtWebEngineWidgets
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtWebEngineWidgets
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtwebengine/include/QtWebEngineCore
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtWebEngineCore
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtlocation/include
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtlocation/include/QtPositioning
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtPositioning
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtxmlpatterns/include
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtxmlpatterns/include/QtXmlPatterns
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtXmlPatterns
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtdeclarative/include
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtdeclarative/include/QtQuick
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtQuick
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtdeclarative/include/QtQmlModels
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtQmlModels
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtwebchannel/include
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtwebchannel/include/QtWebChannel
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtWebChannel
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtdeclarative/include/QtQml
+-IC:/Users/YOURNAME/Desktop/qt-everywhere-src-5.15.2/qtbase/include/QtQml
+-IC:/Qt/5.15.2-msvc2019/include
+-IC:/Qt/5.15.2-msvc2019/include/QtPrintSupport
+-IC:/Qt/5.15.2-msvc2019/include/QtWidgets
+-IC:/Qt/5.15.2-msvc2019/include/QtGui
+-IC:/Qt/5.15.2-msvc2019/include/QtANGLE
+-IC:/Qt/5.15.2-msvc2019/include/QtSql
+-IC:/Qt/5.15.2-msvc2019/include/QtNetwork
+-IC:/Qt/5.15.2-msvc2019/include/QtCore
+-IC:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\include
+-IC:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC\14.44.35207\ATLMFC\include
+-IC:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\VS\include
+-IC:\Program Files (x86)\Windows Kits\10\include\10.0.26100.0\ucrt
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\um
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\shared
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\winrt
+-IC:\Program Files (x86)\Windows Kits\10\\include\10.0.26100.0\\cppwinrt
+-IC:\Program Files (x86)\Windows Kits\NETFXSDK\4.8\include\um

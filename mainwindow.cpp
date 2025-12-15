@@ -6,6 +6,8 @@
 #include "spotlite.h"
 #include "spotview.h"
 #include "spotsignature.h"
+#include "nzbgetsettingsdialog.h"
+#include <QLocale>
 #include <QSettings>
 #include <QCloseEvent>
 #include <QMessageBox>
@@ -14,6 +16,7 @@
 #include <QProgressDialog>
 #include <QFontMetrics>
 #include <QCursor>
+#include <QTimer>
 
 #include <QStandardPaths>
 #include <QDesktopServices>
@@ -26,6 +29,7 @@
 #include <QShortcut>
 #include <QKeySequence>
 #include <QLabel>
+#include <QPushButton>
 #include <QApplication>
 #include <QWebEngineProfile>
 #include <QWebEngineSettings>
@@ -56,6 +60,15 @@ MainWindow::MainWindow(QWidget *parent) :
 #endif
 
     ui->setupUi(this);
+    connect(ui->nzbgetTree, &QTreeWidget::itemSelectionChanged, this, &MainWindow::updateNzbGetState);
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this](int index) {
+        if (ui->tabWidget->widget(index) == ui->nzbgetTab)
+        {
+            _nzbTabInitialized = true;
+            if (sl && sl->nzbGetConfigured())
+                refreshNzbGetView(true);
+        }
+    });
     //ui->treeWidget->collapse(ui->treeWidget->model()->index(6,0) ); // ero
 
     QString datadir;
@@ -84,6 +97,13 @@ MainWindow::MainWindow(QWidget *parent) :
 
     connect(sl, SIGNAL(error(int,QString)), this, SLOT(onError(int,QString)));
     connect(sl, SIGNAL(notice(int,QString)), this, SLOT(onNotice(int,QString)));
+    QTimer::singleShot(0, sl, SLOT(announceBwListStatus()));
+    connect(sl, &SpotLite::nzbGetConfigChanged, this, &MainWindow::updateNzbGetState);
+    _nzbgetRefreshTimer.setInterval(7000);
+    connect(&_nzbgetRefreshTimer, &QTimer::timeout, this, [this]() {
+        if (sl && sl->nzbGetConfigured() && _nzbTabInitialized)
+            refreshNzbGetView(false);
+    });
 
     model = new SpotsModel(sl, this);
     ui->tableView->setModel(model);
@@ -161,6 +181,7 @@ MainWindow::MainWindow(QWidget *parent) :
     setFonts();
     //model->setQuery("", -1, 0);
     ui->treeWidget->setCurrentItem(ui->treeWidget->topLevelItem(0));
+    updateNzbGetState();
 
     /* Splitter */
     ui->frame->setMaximumWidth(10000);
@@ -810,6 +831,32 @@ void MainWindow::on_actionOver_SpotLite_triggered()
     );
 }
 
+void MainWindow::on_actionWhitelist_blacklist_status_triggered()
+{
+    if (!sl)
+        return;
+    const QString msg = sl->bwListStatusMessage(true);
+    QMessageBox::information(
+        this,
+        tr("Whitelist/Blacklist-status"),
+        msg
+    );
+    sl->announceBwListStatus();
+}
+
+void MainWindow::on_actionNZBGet_instellingen_triggered()
+{
+    if (!sl)
+        return;
+    NzbGetSettingsDialog dlg(sl, this);
+    if (dlg.exec() == QDialog::Accepted)
+    {
+        updateNzbGetState();
+        if (ui->tabWidget->currentWidget() == ui->nzbgetTab)
+            refreshNzbGetView(true);
+    }
+}
+
 void MainWindow::on_queryEdit_returnPressed()
 {
     on_zoekButton_clicked();
@@ -1389,4 +1436,152 @@ void MainWindow::applyTheme(const QString &mode)
         sl->settings()->setValue("ui/theme", normalized);
         sl->settings()->sync();
     }
+}
+
+void MainWindow::refreshNzbGetQueue(bool userTriggered)
+{
+    if (!sl || !sl->nzbGetConfigured())
+    {
+        ui->nzbgetStatusLabel->setText(tr("NZBGet niet geconfigureerd."));
+        ui->nzbgetTree->clear();
+        _currentNzbQueue.clear();
+        updateNzbGetState();
+        return;
+    }
+
+    QString error;
+    const QVector<NzbGetQueueEntry> queue = sl->fetchNzbGetQueue(&error);
+    if (!error.isEmpty())
+    {
+        ui->nzbgetStatusLabel->setText(error);
+        if (userTriggered)
+            onNotice(0, error);
+        return;
+    }
+
+    _currentNzbQueue = queue;
+    ui->nzbgetTree->clear();
+
+    const QLocale locale;
+    for (const NzbGetQueueEntry &entry : queue)
+    {
+        QTreeWidgetItem *item = new QTreeWidgetItem(ui->nzbgetTree);
+        item->setData(0, Qt::UserRole, entry.id);
+        item->setText(0, entry.name);
+        item->setText(1, entry.status);
+        const QString progressText = tr("%1 %").arg(locale.toString(entry.progress, 'f', 1));
+        const QString remainingText = tr("%1 MB resterend").arg(locale.toString(entry.remainingMB));
+        const QString speedText = tr("%1 KB/s").arg(locale.toString(entry.avgRateKB, 'f', 1));
+        item->setText(2, QStringLiteral("%1 | %2 | %3").arg(progressText, remainingText, speedText));
+        item->setText(3, entry.category);
+    }
+
+    if (queue.isEmpty())
+        ui->nzbgetStatusLabel->setText(tr("Geen downloads in NZBGet-queue."));
+    else
+        ui->nzbgetStatusLabel->setText(tr("%1 download(s) actief.").arg(queue.size()));
+
+    updateNzbGetState();
+}
+
+void MainWindow::refreshNzbGetHistory(bool userTriggered)
+{
+    if (!sl || !sl->nzbGetConfigured())
+    {
+        ui->nzbgetStatusLabel->setText(tr("NZBGet niet geconfigureerd."));
+        ui->nzbgetTree->clear();
+        _currentNzbHistory.clear();
+        updateNzbGetState();
+        return;
+    }
+
+    QString error;
+    const QVector<NzbGetHistoryEntry> history = sl->fetchNzbGetHistory(&error);
+    if (!error.isEmpty())
+    {
+        ui->nzbgetStatusLabel->setText(error);
+        if (userTriggered)
+            onNotice(0, error);
+        return;
+    }
+
+    _currentNzbHistory = history;
+    ui->nzbgetTree->clear();
+
+    const QLocale locale;
+    for (const NzbGetHistoryEntry &entry : history)
+    {
+        QTreeWidgetItem *item = new QTreeWidgetItem(ui->nzbgetTree);
+        item->setData(0, Qt::UserRole, entry.id);
+        item->setText(0, entry.name);
+        item->setText(1, entry.status);
+        const QString completed = entry.completedAt.isValid()
+            ? locale.toString(entry.completedAt.toLocalTime(), QLocale::ShortFormat)
+            : tr("Onbekend");
+        const QString sizeText = entry.sizeMB > 0
+            ? tr("%1 MB").arg(locale.toString(entry.sizeMB))
+            : tr("onbekende grootte");
+        item->setText(2, tr("%1 | %2").arg(completed, sizeText));
+        item->setText(3, entry.category);
+    }
+
+    if (history.isEmpty())
+        ui->nzbgetStatusLabel->setText(tr("Nog geen afgeronde NZBGet-downloads."));
+    else
+        ui->nzbgetStatusLabel->setText(tr("%1 afgeronde download(s).").arg(history.size()));
+
+    updateNzbGetState();
+}
+
+void MainWindow::refreshNzbGetView(bool userTriggered)
+{
+    if (_nzbViewMode == NzbGetViewMode::History)
+        refreshNzbGetHistory(userTriggered);
+    else
+        refreshNzbGetQueue(userTriggered);
+}
+
+void MainWindow::updateNzbGetState()
+{
+    const bool configured = sl && sl->nzbGetConfigured();
+    ui->nzbgetTree->setEnabled(configured);
+    ui->nzbgetShowActiveButton->setEnabled(configured);
+    ui->nzbgetShowHistoryButton->setEnabled(configured);
+
+    auto syncButton = [](QPushButton *button, bool checked) {
+        if (!button)
+            return;
+        const bool blocked = button->blockSignals(true);
+        button->setChecked(checked);
+        button->blockSignals(blocked);
+    };
+    syncButton(ui->nzbgetShowActiveButton, _nzbViewMode == NzbGetViewMode::Active);
+    syncButton(ui->nzbgetShowHistoryButton, _nzbViewMode == NzbGetViewMode::History);
+
+    if (!configured)
+    {
+        _nzbgetRefreshTimer.stop();
+        if (!ui->nzbgetStatusLabel->text().startsWith(tr("NZBGet niet")))
+            ui->nzbgetStatusLabel->setText(tr("NZBGet niet geconfigureerd."));
+        return;
+    }
+
+    if (!_nzbgetRefreshTimer.isActive())
+        _nzbgetRefreshTimer.start();
+}
+
+void MainWindow::on_nzbgetShowActiveButton_clicked()
+{
+    if (_nzbViewMode == NzbGetViewMode::Active)
+        return;
+    _nzbViewMode = NzbGetViewMode::Active;
+    refreshNzbGetQueue(true);
+}
+
+void MainWindow::on_nzbgetShowHistoryButton_clicked()
+{
+    if (_nzbViewMode == NzbGetViewMode::History)
+        return;
+    _nzbViewMode = NzbGetViewMode::History;
+    refreshNzbGetHistory(true);
 }

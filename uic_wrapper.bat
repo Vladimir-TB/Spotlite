@@ -6,5 +6,5 @@ if defined QT_PLUGIN_PATH (
 ) else (
     set QT_PLUGIN_PATH=C:\Qt\5.15.2-msvc2019\plugins
 )
-C:\Users\William\Desktop\qt-everywhere-src-5.15.2\qtbase\bin\uic.exe %*
+C:\Users\YOURNAME\Desktop\qt-everywhere-src-5.15.2\qtbase\bin\uic.exe %*
 EndLocal

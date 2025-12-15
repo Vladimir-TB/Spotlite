@@ -1,7 +1,7 @@
 #ifndef SPOTLITE_H
 #define SPOTLITE_H
 
-#define SPOTLITE_VERSION   "SpotLite v2.1.0"
+#define SPOTLITE_VERSION   "SpotLite v3.1.0"
 
 #include <QObject>
 #include <QtSql/QSqlDatabase>
@@ -9,11 +9,56 @@
 #include <QList>
 #include <QMap>
 #include <QTime>
+#include <QDateTime>
 #include <QTimer>
 #include <QSettings>
 #include <QSet>
+#include <QByteArray>
+#include <QUrl>
+#include <QVector>
+#include <QJsonArray>
+#include <QJsonValue>
 
 class SpotNNTP;
+
+struct NzbGetConfig
+{
+    bool enabled{false};
+    QString host{QStringLiteral("127.0.0.1")};
+    int port{6789};
+    bool ssl{false};
+    QString username;
+    QString password;
+    QString category;
+    bool addPaused{false};
+    int priority{0};
+};
+
+struct NzbGetQueueEntry
+{
+    int id{0};
+    QString name;
+    QString status;
+    QString category;
+    int priority{0};
+    int sizeMB{0};
+    int remainingMB{0};
+    int downloadedMB{0};
+    double health{0.0};
+    double progress{0.0};
+    double avgRateKB{0.0};
+    bool paused{false};
+};
+
+struct NzbGetHistoryEntry
+{
+    int id{0};
+    QString name;
+    QString status;
+    QString category;
+    int sizeMB{0};
+    QDateTime completedAt;
+};
 
 class SpotLite : public QObject
 {
@@ -37,6 +82,7 @@ public:
     void addToWatchlist(int spotid);
     void removeFromWatchlist(int spotid);
     QSettings *settings();
+    QByteArray bwListScript();
     bool inTransaction();
     void reloadFriendsAndFoes();
     bool isFriend(const QByteArray &userid) const;
@@ -60,6 +106,7 @@ signals:
     void notice(int code, const QString &msg);
     void newSpots();
     void processingQueuedSpots();
+    void nzbGetConfigChanged();
 
 public slots:
     void onArticleData(const QByteArray &msgid, QByteArray data);
@@ -74,6 +121,15 @@ public slots:
     void onRefreshTimer();
     void connectToServer();
     void onFilterDone();
+    void announceBwListStatus();
+    QString bwListStatusMessage(bool includeTimestamp = true) const;
+    bool nzbGetConfigured() const;
+    NzbGetConfig nzbGetConfig() const;
+    void setNzbGetConfig(const NzbGetConfig &config);
+    bool sendNzbToNzbGet(const QString &title, const QByteArray &nzbData, QString *errorMessage = nullptr) const;
+    QVector<NzbGetQueueEntry> fetchNzbGetQueue(QString *errorMessage = nullptr) const;
+    QVector<NzbGetHistoryEntry> fetchNzbGetHistory(QString *errorMessage = nullptr) const;
+    bool editNzbGetQueue(const QString &command, const QList<int> &ids, const QString &param = QString(), QString *errorMessage = nullptr) const;
 
 protected:
     QSqlDatabase _spotDatabase, _cacheDatabase, _commlistDatabase;
@@ -84,6 +140,18 @@ protected:
     void _downloadQueue();
     void _cleanWatchlist();
     void _initDBsettings(QSqlDatabase &db);
+    void _ensureBwListTables();
+    void _refreshBwListsIfNeeded(bool force = false);
+    bool _downloadAndStoreBwList(const QUrl &url, const QString &list);
+    QByteArray _downloadUrl(const QUrl &url) const;
+    bool _storeBwList(const QByteArray &data, const QString &list);
+    int _bwListCount(const QString &list) const;
+    QByteArray _serializeBwList(const QString &list) const;
+    qint64 _bwListLastRefresh() const;
+    QByteArray _generateBwListScript() const;
+    void _loadNzbGetConfig() const;
+    bool _nzbGetRequest(const QString &method, const QJsonArray &params, QJsonValue *result, QString *errorMessage = nullptr) const;
+    void _writeNzbGetDebugDump(const QJsonObject &payload) const;
     void _prepareInsertQueries();
     QString _decodeUtf8(const QByteArray &s);
     QByteArray _fetchFromCache(const QByteArray &id);
@@ -109,6 +177,11 @@ protected:
 
     QSet<QByteArray> _friends, _foes;
     QList<QByteArray> watchlist_msgids, ewatchlist_msgids;
+    QByteArray _bwListScriptCache;
+    mutable qint64 _bwListCacheStamp{0};
+    QTimer _bwListRefreshTimer;
+    mutable NzbGetConfig _nzbGetConfig;
+    mutable bool _nzbGetConfigLoaded{false};
 
     bool _portable;
 };

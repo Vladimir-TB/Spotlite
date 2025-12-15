@@ -41,6 +41,7 @@ public slots:
     void onWatchlistToggle(bool add);
     void onReply();
     void onDownloadNZB();
+    void onSendNzbToClient();
     void onReport();
     void onNewComment(const QByteArray &msg);
     void onDeleteSpot();
@@ -55,6 +56,7 @@ protected:
     QNetworkAccessManager _apiNam;
     QPointer<QNetworkReply> _activeNzbReply;
     bool _nzbSaveRequested{false};
+    bool _nzbSendRequested{false};
 
     QTabWidget *_tw;
     int _spotid, _cat, _subcat, _spotdate;
@@ -69,6 +71,7 @@ protected:
     bool _useActionLinks, _requireValidSignature;
     QHash<QByteArray,QByteArray> _useridsAndNames;
     QToolButton *_nzbButton{nullptr};
+    QToolButton *_nzbSendButton{nullptr};
 
     QByteArray _mainTemplate, _commentTemplate;
     QByteArray _lastNzbData;
@@ -90,6 +93,8 @@ protected:
     void _updateHTML();
     QByteArray _toHTML(const QString &in);
     QByteArray _normalizeUsername(QByteArray username, QByteArray userid);
+    void _injectBwListScript(QByteArray &html);
+    void _sendCachedNzbToClient();
 
     virtual void _initWebbrowser();
     virtual void _displayHTML(const QByteArray &html, bool final = true);

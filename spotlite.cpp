@@ -15,6 +15,15 @@
 #include <QDataStream>
 #include <QSqlError>
 #include <QProcess>
+#include <QNetworkAccessManager>
+#include <QNetworkRequest>
+#include <QNetworkReply>
+#include <QEventLoop>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
+#include <QXmlStreamReader>
+#include <QVector>
 #include "qtioprocessor/qtiocompressor.h"
 
 #include <stdexcept>
@@ -22,6 +31,11 @@
 #define MAX_PER_CYCLE           50000
 #define MAX_PER_CYCLE_XHDR      (MAX_PER_CYCLE*4)
 #define HEADER_REFRESH_INTERVAL 119000
+static const qint64 BWLIST_REFRESH_INTERVAL_SECS = 6 * 60 * 60; // every 6 hours
+static const int BWLIST_TIMEOUT_MS = 15000;
+static const char kWhiteListUrl[] = "https://spotlist.store/spotnet/whitelist/whitelist.xml";
+static const char kBlackListUrl[] = "https://spotlist.store/spotnet/blacklist/blacklist.xml";
+static const int NZBGET_TIMEOUT_MS = 15000;
 
 SpotLite::SpotLite(QString datadir, bool portable, QObject *parent) :
     QObject(parent), _datadir(datadir), _nntp(NULL), startid(0), _newposts(0), _neweposts(0), _transaction(false), _commlistTransaction(false), _nntpSwitch(false), _updateKnop(false), _uptodate(false),
@@ -30,6 +44,14 @@ SpotLite::SpotLite(QString datadir, bool portable, QObject *parent) :
     qsrand( QDateTime::currentDateTime().toTime_t() );
     qRegisterMetaTypeStreamOperators<CustomFilter>("CustomFilter");
     _openDatabases();
+    _ensureBwListTables();
+    _refreshBwListsIfNeeded(true);
+    _bwListRefreshTimer.setInterval(BWLIST_REFRESH_INTERVAL_SECS * 1000);
+    _bwListRefreshTimer.setSingleShot(false);
+    connect(&_bwListRefreshTimer, &QTimer::timeout, this, [this]() {
+        _refreshBwListsIfNeeded();
+    });
+    _bwListRefreshTimer.start();
     qDebug() << "Watchlist opschonen";
     _cleanWatchlist();
     _refreshHeaderTimer.setSingleShot(true);
@@ -1750,6 +1772,594 @@ void SpotLite::_initDBsettings(QSqlDatabase &db)
         q.exec("PRAGMA locking_mode=EXCLUSIVE");
     q.exec("PRAGMA journal_mode=WAL");
     q.exec("PRAGMA journal_size_limit=16000000");
+}
+
+void SpotLite::_ensureBwListTables()
+{
+    if (!_cacheDatabase.isValid())
+        return;
+
+    QSqlQuery q(_cacheDatabase);
+    if (!q.exec("CREATE TABLE IF NOT EXISTS bwlist ("
+                "list TEXT NOT NULL,"
+                "key TEXT NOT NULL,"
+                "name TEXT,"
+                "updated_at INTEGER DEFAULT 0,"
+                "PRIMARY KEY(list, key))"))
+    {
+        qWarning() << "Kan bwlist tabel niet aanmaken:" << q.lastError();
+    }
+    if (!q.exec("CREATE INDEX IF NOT EXISTS idx_bwlist_list ON bwlist(list)"))
+        qWarning() << "Kan bwlist index niet aanmaken:" << q.lastError();
+    if (!q.exec("CREATE TABLE IF NOT EXISTS bwlist_meta (id INTEGER PRIMARY KEY CHECK(id=1), last_refresh INTEGER DEFAULT 0)"))
+        qWarning() << "Kan bwlist_meta tabel niet aanmaken:" << q.lastError();
+    if (!q.exec("INSERT OR IGNORE INTO bwlist_meta(id,last_refresh) VALUES(1,0)"))
+        qWarning() << "Kan bwlist_meta initialiseren:" << q.lastError();
+}
+
+void SpotLite::_refreshBwListsIfNeeded(bool force)
+{
+    if (!_cacheDatabase.isOpen())
+        return;
+
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    const qint64 lastRefresh = _bwListLastRefresh();
+    if (!force && lastRefresh > 0 && (now - lastRefresh) < BWLIST_REFRESH_INTERVAL_SECS)
+        return;
+
+    const bool whiteOk = _downloadAndStoreBwList(QUrl(QString::fromUtf8(kWhiteListUrl)), QStringLiteral("white"));
+    const bool blackOk = _downloadAndStoreBwList(QUrl(QString::fromUtf8(kBlackListUrl)), QStringLiteral("black"));
+
+    if (whiteOk && blackOk)
+    {
+        QSqlQuery q(_cacheDatabase);
+        q.prepare("INSERT OR REPLACE INTO bwlist_meta(id,last_refresh) VALUES(1,?)");
+        q.addBindValue(now);
+        if (!q.exec())
+            qWarning() << "Kan bwlist meta niet bijwerken:" << q.lastError();
+        _bwListScriptCache.clear();
+        _bwListCacheStamp = now;
+        const int whiteCount = _bwListCount(QStringLiteral("white"));
+        const int blackCount = _bwListCount(QStringLiteral("black"));
+        qDebug() << "Blacklist/whitelist ververst" << whiteCount << "wit" << "/" << blackCount << "zwart";
+        emit notice(0, bwListStatusMessage());
+    }
+    else
+    {
+        emit notice(0, tr("Kon whitelist/blacklist niet vernieuwen; gebruik bestaande gegevens"));
+    }
+}
+
+bool SpotLite::_downloadAndStoreBwList(const QUrl &url, const QString &list)
+{
+    const QByteArray payload = _downloadUrl(url);
+    if (payload.isEmpty())
+    {
+        qWarning() << "Lege response ontvangen voor" << list << "lijst van" << url;
+        return false;
+    }
+    return _storeBwList(payload, list);
+}
+
+QByteArray SpotLite::_downloadUrl(const QUrl &url) const
+{
+    QNetworkAccessManager nam;
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("SpotLite/2.1 (bwlist)"));
+    req.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+    QByteArray data;
+
+    QNetworkReply *reply = nam.get(req);
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    timer.start(BWLIST_TIMEOUT_MS);
+    loop.exec();
+
+    if (!reply->isFinished())
+        reply->abort();
+
+    if (timer.isActive())
+        timer.stop();
+
+    if (reply->error() == QNetworkReply::NoError)
+        data = reply->readAll();
+    else
+        qWarning() << "Download fout bij" << url << ":" << reply->errorString();
+
+    reply->deleteLater();
+    return data;
+}
+
+bool SpotLite::_storeBwList(const QByteArray &data, const QString &list)
+{
+    QXmlStreamReader xml(data);
+    struct Entry { QString name; QString key; };
+    QVector<Entry> entries;
+
+    while (!xml.atEnd())
+    {
+        xml.readNext();
+        if (xml.isStartElement() && xml.name() == QLatin1String("Key"))
+        {
+            const QString entryName = xml.attributes().value(QStringLiteral("Name")).toString();
+            const QString keyValue = xml.readElementText(QXmlStreamReader::SkipChildElements).trimmed();
+            if (!keyValue.isEmpty())
+                entries.push_back({ entryName, keyValue });
+        }
+    }
+
+    if (xml.hasError())
+    {
+        qWarning() << "Kan bwlist XML niet parsen voor" << list << ":" << xml.errorString();
+        return false;
+    }
+
+    if (!_cacheDatabase.transaction())
+        qWarning() << "Kan transactie niet starten voor bwlist";
+
+    bool ok = true;
+    QSqlQuery del(_cacheDatabase);
+    del.prepare("DELETE FROM bwlist WHERE list=?");
+    del.addBindValue(list);
+    if (!del.exec())
+    {
+        qWarning() << "Kan oude bwlist records niet verwijderen:" << del.lastError();
+        ok = false;
+    }
+
+    if (ok)
+    {
+        QSqlQuery ins(_cacheDatabase);
+        ins.prepare("INSERT OR REPLACE INTO bwlist(list,key,name,updated_at) VALUES(?,?,?,?)");
+        const qint64 now = QDateTime::currentSecsSinceEpoch();
+        for (const Entry &entry : entries)
+        {
+            ins.bindValue(0, list);
+            ins.bindValue(1, entry.key);
+            ins.bindValue(2, entry.name);
+            ins.bindValue(3, now);
+            if (!ins.exec())
+            {
+                qWarning() << "Kan bwlist record niet invoegen:" << ins.lastError();
+                ok = false;
+                break;
+            }
+        }
+    }
+
+    if (ok)
+    {
+        if (!_cacheDatabase.commit())
+            qWarning() << "Kan transactie niet committen voor bwlist";
+        return true;
+    }
+
+    _cacheDatabase.rollback();
+    return false;
+}
+
+int SpotLite::_bwListCount(const QString &list) const
+{
+    if (!_cacheDatabase.isOpen())
+        return 0;
+    QSqlQuery q(_cacheDatabase);
+    q.prepare("SELECT COUNT(*) FROM bwlist WHERE list=?");
+    q.addBindValue(list);
+    if (q.exec() && q.next())
+        return q.value(0).toInt();
+    return 0;
+}
+
+void SpotLite::announceBwListStatus()
+{
+    emit notice(0, bwListStatusMessage());
+}
+
+qint64 SpotLite::_bwListLastRefresh() const
+{
+    if (!_cacheDatabase.isOpen())
+        return 0;
+
+    QSqlQuery q(_cacheDatabase);
+    if (!q.exec("SELECT last_refresh FROM bwlist_meta WHERE id=1"))
+        return 0;
+    if (q.next())
+        return q.value(0).toLongLong();
+    return 0;
+}
+
+QString SpotLite::bwListStatusMessage(bool includeTimestamp) const
+{
+    const int white = _bwListCount(QStringLiteral("white"));
+    const int black = _bwListCount(QStringLiteral("black"));
+    if (white == 0 && black == 0)
+    {
+        return tr("Nog geen whitelist/blacklist beschikbaar.");
+    }
+    QString msg = tr("Whitelist en blacklist geladen (%1 wit / %2 zwart)").arg(white).arg(black);
+    if (includeTimestamp)
+    {
+        const qint64 ts = _bwListLastRefresh();
+        if (ts > 0)
+        {
+            msg += tr(" - versie: %1").arg(QDateTime::fromSecsSinceEpoch(ts).toString(Qt::ISODate));
+        }
+    }
+    return msg;
+}
+
+QByteArray SpotLite::_serializeBwList(const QString &list) const
+{
+    QByteArray result("[");
+    bool first = true;
+    if (_cacheDatabase.isOpen())
+    {
+        QSqlQuery q(_cacheDatabase);
+        q.prepare("SELECT key FROM bwlist WHERE list=? ORDER BY name COLLATE NOCASE");
+        q.addBindValue(list);
+        if (q.exec())
+        {
+            while (q.next())
+            {
+                QByteArray key = q.value(0).toByteArray();
+                key.replace("\\", "\\\\");
+                key.replace("\"", "\\\"");
+                if (!first)
+                    result += ",";
+                result += "\"" + key + "\"";
+                first = false;
+            }
+        }
+    }
+    result += "]";
+    return result;
+}
+
+QByteArray SpotLite::_generateBwListScript() const
+{
+    QByteArray script;
+    script.reserve(256);
+    script += "const whiteList = ";
+    script += _serializeBwList(QStringLiteral("white"));
+    script += ";\nconst blackList = ";
+    script += _serializeBwList(QStringLiteral("black"));
+    script += ";\n";
+
+    const qint64 lastRefresh = _bwListLastRefresh();
+    if (lastRefresh > 0)
+    {
+        script += "const bwListVersion = ";
+        script += QByteArray::number(lastRefresh);
+        script += ";\n";
+    }
+    return script;
+}
+
+QByteArray SpotLite::bwListScript()
+{
+    if (_bwListScriptCache.isEmpty())
+        _bwListScriptCache = _generateBwListScript();
+    return _bwListScriptCache;
+}
+
+void SpotLite::_loadNzbGetConfig() const
+{
+    if (_nzbGetConfigLoaded)
+        return;
+
+    _nzbGetConfig.enabled = _settings.value("nzbget/enabled", false).toBool();
+    _nzbGetConfig.host = _settings.value("nzbget/host", QStringLiteral("127.0.0.1")).toString();
+    _nzbGetConfig.port = _settings.value("nzbget/port", 6789).toInt();
+    _nzbGetConfig.ssl = _settings.value("nzbget/ssl", false).toBool();
+    _nzbGetConfig.username = _settings.value("nzbget/username").toString();
+    _nzbGetConfig.password = _settings.value("nzbget/password").toString();
+    _nzbGetConfig.category = _settings.value("nzbget/category").toString();
+    _nzbGetConfig.addPaused = _settings.value("nzbget/addPaused", false).toBool();
+    _nzbGetConfig.priority = _settings.value("nzbget/priority", 0).toInt();
+    _nzbGetConfigLoaded = true;
+}
+
+NzbGetConfig SpotLite::nzbGetConfig() const
+{
+    _loadNzbGetConfig();
+    return _nzbGetConfig;
+}
+
+void SpotLite::setNzbGetConfig(const NzbGetConfig &config)
+{
+    _nzbGetConfig = config;
+    _nzbGetConfigLoaded = true;
+
+    _settings.setValue("nzbget/enabled", config.enabled);
+    _settings.setValue("nzbget/host", config.host);
+    _settings.setValue("nzbget/port", config.port);
+    _settings.setValue("nzbget/ssl", config.ssl);
+    _settings.setValue("nzbget/username", config.username);
+    _settings.setValue("nzbget/password", config.password);
+    _settings.setValue("nzbget/category", config.category);
+    _settings.setValue("nzbget/addPaused", config.addPaused);
+    _settings.setValue("nzbget/priority", config.priority);
+    _settings.sync();
+
+    emit nzbGetConfigChanged();
+}
+
+bool SpotLite::nzbGetConfigured() const
+{
+    _loadNzbGetConfig();
+    return _nzbGetConfig.enabled && !_nzbGetConfig.host.isEmpty() && _nzbGetConfig.port > 0;
+}
+
+bool SpotLite::sendNzbToNzbGet(const QString &title, const QByteArray &nzbData, QString *errorMessage) const
+{
+    if (!nzbGetConfigured())
+    {
+        if (errorMessage)
+            *errorMessage = tr("NZBGet is niet geconfigureerd.");
+        return false;
+    }
+
+    QString filename = title;
+    if (filename.trimmed().isEmpty())
+        filename = QStringLiteral("spotlite-download");
+    if (!filename.endsWith(".nzb", Qt::CaseInsensitive))
+        filename += QStringLiteral(".nzb");
+
+    QJsonArray params;
+    params.append(filename);
+    params.append(QString::fromUtf8(nzbData.toBase64()));
+    params.append(_nzbGetConfig.category);
+    params.append(_nzbGetConfig.priority);
+    params.append(false); // AddToTop
+    params.append(_nzbGetConfig.addPaused);
+    params.append(QString()); // DupeKey
+    params.append(0); // DupeScore
+    params.append(QStringLiteral("SCORE"));
+    // NZBGet expects PPParameters as trailing name/value string pairs (see XmlRpc.cpp::DownloadXmlCommand::Execute).
+    // We don't expose per-download PP parameters yet, so we omit them entirely instead of sending an empty array.
+
+    QJsonValue result;
+    QString localError;
+    const bool ok = _nzbGetRequest(QStringLiteral("append"), params, &result, &localError);
+
+    if (!ok)
+    {
+        if (errorMessage)
+            *errorMessage = localError.isEmpty() ? tr("NZBGet accepteerde het NZB-bestand niet.") : localError;
+        return false;
+    }
+
+    if (!result.isDouble() || result.toInt() <= 0)
+    {
+        if (errorMessage)
+            *errorMessage = tr("NZBGet accepteerde het NZB-bestand niet.");
+        return false;
+    }
+    return true;
+}
+
+QVector<NzbGetHistoryEntry> SpotLite::fetchNzbGetHistory(QString *errorMessage) const
+{
+    QVector<NzbGetHistoryEntry> history;
+    if (!nzbGetConfigured())
+    {
+        if (errorMessage)
+            *errorMessage = tr("NZBGet is niet geconfigureerd.");
+        return history;
+    }
+
+    QJsonValue result;
+    if (!_nzbGetRequest(QStringLiteral("history"), QJsonArray() << false, &result, errorMessage))
+        return history;
+
+    if (!result.isArray())
+        return history;
+
+    const QJsonArray arr = result.toArray();
+    for (const QJsonValue &value : arr)
+    {
+        if (!value.isObject())
+            continue;
+        const QJsonObject obj = value.toObject();
+        NzbGetHistoryEntry entry;
+        entry.id = obj.value(QStringLiteral("NZBID")).toInt(obj.value(QStringLiteral("ID")).toInt());
+        entry.name = obj.value(QStringLiteral("NZBName")).toString(obj.value(QStringLiteral("Name")).toString());
+        entry.status = obj.value(QStringLiteral("Status")).toString();
+        entry.category = obj.value(QStringLiteral("Category")).toString();
+        entry.sizeMB = obj.value(QStringLiteral("FileSizeMB")).toInt(obj.value(QStringLiteral("DownloadedSizeMB")).toInt());
+        const qint64 historyTime = obj.value(QStringLiteral("HistoryTime")).toVariant().toLongLong();
+        if (historyTime > 0)
+            entry.completedAt = QDateTime::fromSecsSinceEpoch(historyTime);
+        history.append(entry);
+    }
+    return history;
+}
+
+QVector<NzbGetQueueEntry> SpotLite::fetchNzbGetQueue(QString *errorMessage) const
+{
+    QVector<NzbGetQueueEntry> queue;
+    if (!nzbGetConfigured())
+    {
+        if (errorMessage)
+            *errorMessage = tr("NZBGet is niet geconfigureerd.");
+        return queue;
+    }
+
+    QJsonValue result;
+    if (!_nzbGetRequest(QStringLiteral("listgroups"), QJsonArray() << 0, &result, errorMessage))
+        return queue;
+
+    if (!result.isArray())
+        return queue;
+
+    const QJsonArray arr = result.toArray();
+    queue.reserve(arr.size());
+    for (const QJsonValue &val : arr)
+    {
+        if (!val.isObject())
+            continue;
+        const QJsonObject obj = val.toObject();
+        NzbGetQueueEntry entry;
+        entry.id = obj.value(QStringLiteral("NZBID")).toInt();
+        entry.name = obj.value(QStringLiteral("NZBName")).toString();
+        entry.status = obj.value(QStringLiteral("Status")).toString();
+        entry.category = obj.value(QStringLiteral("Category")).toString();
+        entry.priority = obj.value(QStringLiteral("MaxPriority")).toInt();
+        entry.sizeMB = obj.value(QStringLiteral("FileSizeMB")).toInt();
+        entry.remainingMB = obj.value(QStringLiteral("RemainingSizeMB")).toInt();
+        entry.downloadedMB = obj.value(QStringLiteral("DownloadedSizeMB")).toInt();
+        entry.health = obj.value(QStringLiteral("Health")).toDouble() / 10.0;
+        entry.avgRateKB = obj.value(QStringLiteral("AverageDownloadRate")).toDouble() / 1024.0;
+        entry.paused = obj.value(QStringLiteral("Status")).toString().contains(QStringLiteral("PAUSED"), Qt::CaseInsensitive);
+        const int total = qMax(1, entry.sizeMB);
+        entry.progress = 100.0 - (static_cast<double>(entry.remainingMB) / static_cast<double>(total) * 100.0);
+        entry.progress = qBound(0.0, entry.progress, 100.0);
+        queue.append(entry);
+    }
+
+    return queue;
+}
+
+bool SpotLite::editNzbGetQueue(const QString &command, const QList<int> &ids, const QString &param, QString *errorMessage) const
+{
+    if (!nzbGetConfigured())
+    {
+        if (errorMessage)
+            *errorMessage = tr("NZBGet is niet geconfigureerd.");
+        return false;
+    }
+    QJsonArray idArray;
+    for (int id : ids)
+        idArray.append(id);
+
+    QJsonArray params;
+    params.append(command);
+    params.append(param);
+    params.append(idArray);
+
+    QJsonValue result;
+    if (!_nzbGetRequest(QStringLiteral("editqueue"), params, &result, errorMessage))
+        return false;
+    if (result.isBool())
+        return result.toBool();
+    if (result.isDouble())
+        return result.toInt() != 0;
+    return true;
+}
+
+bool SpotLite::_nzbGetRequest(const QString &method, const QJsonArray &params, QJsonValue *result, QString *errorMessage) const
+{
+    if (!nzbGetConfigured())
+    {
+        if (errorMessage)
+            *errorMessage = tr("NZBGet is niet geconfigureerd.");
+        return false;
+    }
+
+    QUrl url;
+    url.setScheme(_nzbGetConfig.ssl ? QStringLiteral("https") : QStringLiteral("http"));
+    url.setHost(_nzbGetConfig.host);
+    url.setPort(_nzbGetConfig.port);
+    url.setPath(QStringLiteral("/jsonrpc"));
+
+    QNetworkRequest request(url);
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QStringLiteral("application/json"));
+    if (!_nzbGetConfig.username.isEmpty())
+    {
+        const QByteArray credentials = (_nzbGetConfig.username + QStringLiteral(":") + _nzbGetConfig.password).toUtf8().toBase64();
+        request.setRawHeader("Authorization", QByteArray("Basic ") + credentials);
+    }
+
+    QJsonObject payload;
+    payload.insert(QStringLiteral("method"), method);
+    payload.insert(QStringLiteral("params"), params);
+    // NZBGet's JSON-RPC parser only expects fields used by its own web UI (nocache/method/params).
+    payload.insert(QStringLiteral("nocache"), static_cast<double>(QDateTime::currentMSecsSinceEpoch()));
+
+    if (method == QStringLiteral("append"))
+    {
+        QJsonObject logPayload = payload;
+        QJsonArray sanitizedParams = params;
+        if (sanitizedParams.size() > 1 && sanitizedParams.at(1).isString())
+        {
+            sanitizedParams[1] = QStringLiteral("<nzb base64 length=%1>")
+                                     .arg(params.at(1).toString().size());
+        }
+        logPayload.insert(QStringLiteral("params"), sanitizedParams);
+        _writeNzbGetDebugDump(logPayload);
+    }
+
+    QNetworkAccessManager nam;
+    QEventLoop loop;
+    QTimer timer;
+    timer.setSingleShot(true);
+    timer.start(NZBGET_TIMEOUT_MS);
+    QNetworkReply *reply = nam.post(request, QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
+    QObject::connect(&timer, &QTimer::timeout, &loop, &QEventLoop::quit);
+    loop.exec();
+
+    if (timer.isActive())
+        timer.stop();
+
+    if (!reply->isFinished())
+    {
+        reply->abort();
+        reply->deleteLater();
+        if (errorMessage)
+            *errorMessage = tr("NZBGet verzoek timeout.");
+        return false;
+    }
+
+    QByteArray data = reply->readAll();
+    const QString networkError = reply->errorString();
+    const bool hadNetworkError = reply->error() != QNetworkReply::NoError;
+    reply->deleteLater();
+
+    if (hadNetworkError)
+    {
+        if (errorMessage)
+            *errorMessage = tr("NZBGet netwerkfout: %1").arg(networkError);
+        return false;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (doc.isNull())
+    {
+        if (errorMessage)
+            *errorMessage = tr("Ongeldig antwoord van NZBGet.");
+        return false;
+    }
+
+    const QJsonObject obj = doc.object();
+    if (obj.contains(QStringLiteral("error")) && obj.value(QStringLiteral("error")).isObject())
+    {
+        const QJsonObject errObj = obj.value(QStringLiteral("error")).toObject();
+        if (errorMessage)
+            *errorMessage = tr("NZBGet fout: %1").arg(errObj.value(QStringLiteral("message")).toString());
+        return false;
+    }
+
+    if (result)
+        *result = obj.value(QStringLiteral("result"));
+    return true;
+}
+
+void SpotLite::_writeNzbGetDebugDump(const QJsonObject &payload) const
+{
+    QJsonObject root;
+    root.insert(QStringLiteral("timestamp"), QDateTime::currentDateTimeUtc().toString(Qt::ISODate));
+    root.insert(QStringLiteral("payload"), payload);
+
+    QFile f(QDir(_datadir).filePath(QStringLiteral("nzbget_last_request.json")));
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    {
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+    }
 }
 
 void SpotLite::exportDatabase(const QString &filename)

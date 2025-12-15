@@ -18,16 +18,19 @@
 #include <QtWidgets/QGridLayout>
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QHeaderView>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QMenu>
 #include <QtWidgets/QMenuBar>
 #include <QtWidgets/QPushButton>
+#include <QtWidgets/QSpacerItem>
 #include <QtWidgets/QSplitter>
 #include <QtWidgets/QStatusBar>
 #include <QtWidgets/QTabWidget>
 #include <QtWidgets/QTableView>
 #include <QtWidgets/QTreeWidget>
+#include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QWidget>
 
 QT_BEGIN_NAMESPACE
@@ -39,10 +42,12 @@ public:
     QAction *actionAfsluiten;
     QAction *actionOver_SpotLite;
     QAction *actionDatabase_optimalizeren;
+    QAction *actionWhitelist_blacklist_status;
     QAction *actionHeaders_verwijderen_en_opnieuw_downloaden;
     QAction *actionGebruikersinterface_aanpassen;
     QAction *actionDonker_thema;
     QAction *actionAdresboek;
+    QAction *actionNZBGet_instellingen;
     QAction *actionSpotMobiel;
     QAction *actionDatabase_importeren;
     QAction *actionDatabase_exporteren;
@@ -63,6 +68,14 @@ public:
     QWidget *tab_2;
     QHBoxLayout *horizontalLayout_3;
     QTableView *tableView;
+    QWidget *nzbgetTab;
+    QVBoxLayout *verticalLayout_4;
+    QLabel *nzbgetStatusLabel;
+    QTreeWidget *nzbgetTree;
+    QHBoxLayout *horizontalLayout_4;
+    QPushButton *nzbgetShowActiveButton;
+    QPushButton *nzbgetShowHistoryButton;
+    QSpacerItem *horizontalSpacer_2;
     QMenuBar *menuBar;
     QMenu *menuProgramma;
     QMenu *menuOpties;
@@ -85,6 +98,8 @@ public:
         actionOver_SpotLite->setObjectName(QString::fromUtf8("actionOver_SpotLite"));
         actionDatabase_optimalizeren = new QAction(MainWindow);
         actionDatabase_optimalizeren->setObjectName(QString::fromUtf8("actionDatabase_optimalizeren"));
+        actionWhitelist_blacklist_status = new QAction(MainWindow);
+        actionWhitelist_blacklist_status->setObjectName(QString::fromUtf8("actionWhitelist_blacklist_status"));
         actionHeaders_verwijderen_en_opnieuw_downloaden = new QAction(MainWindow);
         actionHeaders_verwijderen_en_opnieuw_downloaden->setObjectName(QString::fromUtf8("actionHeaders_verwijderen_en_opnieuw_downloaden"));
         actionGebruikersinterface_aanpassen = new QAction(MainWindow);
@@ -94,6 +109,8 @@ public:
         actionDonker_thema->setCheckable(true);
         actionAdresboek = new QAction(MainWindow);
         actionAdresboek->setObjectName(QString::fromUtf8("actionAdresboek"));
+        actionNZBGet_instellingen = new QAction(MainWindow);
+        actionNZBGet_instellingen->setObjectName(QString::fromUtf8("actionNZBGet_instellingen"));
         actionSpotMobiel = new QAction(MainWindow);
         actionSpotMobiel->setObjectName(QString::fromUtf8("actionSpotMobiel"));
         actionDatabase_importeren = new QAction(MainWindow);
@@ -234,6 +251,50 @@ public:
         horizontalLayout_2->addWidget(tabWidget_2);
 
         tabWidget->addTab(tab, QString());
+        nzbgetTab = new QWidget();
+        nzbgetTab->setObjectName(QString::fromUtf8("nzbgetTab"));
+        verticalLayout_4 = new QVBoxLayout(nzbgetTab);
+        verticalLayout_4->setSpacing(6);
+        verticalLayout_4->setContentsMargins(11, 11, 11, 11);
+        verticalLayout_4->setObjectName(QString::fromUtf8("verticalLayout_4"));
+        verticalLayout_4->setContentsMargins(6, 6, 6, 6);
+        nzbgetStatusLabel = new QLabel(nzbgetTab);
+        nzbgetStatusLabel->setObjectName(QString::fromUtf8("nzbgetStatusLabel"));
+
+        verticalLayout_4->addWidget(nzbgetStatusLabel);
+
+        nzbgetTree = new QTreeWidget(nzbgetTab);
+        nzbgetTree->setObjectName(QString::fromUtf8("nzbgetTree"));
+        nzbgetTree->setRootIsDecorated(false);
+        nzbgetTree->setAlternatingRowColors(true);
+        nzbgetTree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+
+        verticalLayout_4->addWidget(nzbgetTree);
+
+        horizontalLayout_4 = new QHBoxLayout();
+        horizontalLayout_4->setSpacing(6);
+        horizontalLayout_4->setObjectName(QString::fromUtf8("horizontalLayout_4"));
+        nzbgetShowActiveButton = new QPushButton(nzbgetTab);
+        nzbgetShowActiveButton->setObjectName(QString::fromUtf8("nzbgetShowActiveButton"));
+        nzbgetShowActiveButton->setCheckable(true);
+        nzbgetShowActiveButton->setChecked(true);
+
+        horizontalLayout_4->addWidget(nzbgetShowActiveButton);
+
+        nzbgetShowHistoryButton = new QPushButton(nzbgetTab);
+        nzbgetShowHistoryButton->setObjectName(QString::fromUtf8("nzbgetShowHistoryButton"));
+        nzbgetShowHistoryButton->setCheckable(true);
+
+        horizontalLayout_4->addWidget(nzbgetShowHistoryButton);
+
+        horizontalSpacer_2 = new QSpacerItem(40, 20, QSizePolicy::Expanding, QSizePolicy::Minimum);
+
+        horizontalLayout_4->addItem(horizontalSpacer_2);
+
+
+        verticalLayout_4->addLayout(horizontalLayout_4);
+
+        tabWidget->addTab(nzbgetTab, QString());
         splitter->addWidget(tabWidget);
 
         horizontalLayout->addWidget(splitter);
@@ -258,6 +319,7 @@ public:
         menuBar->addAction(menuHelp->menuAction());
         menuProgramma->addAction(actionDatabase_importeren);
         menuProgramma->addAction(actionDatabase_exporteren);
+        menuProgramma->addAction(actionWhitelist_blacklist_status);
         menuProgramma->addAction(actionAfsluiten);
         menuOpties->addAction(actionConfiguratie);
         menuOpties->addAction(actionDatabase_optimalizeren);
@@ -265,6 +327,7 @@ public:
         menuOpties->addAction(actionGebruikersinterface_aanpassen);
         menuOpties->addAction(actionDonker_thema);
         menuOpties->addAction(actionAdresboek);
+        menuOpties->addAction(actionNZBGet_instellingen);
         menuHelp->addAction(actionOver_SpotLite);
 
         retranslateUi(MainWindow);
@@ -278,11 +341,12 @@ public:
 
     void retranslateUi(QMainWindow *MainWindow)
     {
-        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "Spotlite Release 3.0", nullptr));
+        MainWindow->setWindowTitle(QCoreApplication::translate("MainWindow", "Spotlite Release 3.1", nullptr));
         actionConfiguratie->setText(QCoreApplication::translate("MainWindow", "Configuratie", nullptr));
         actionAfsluiten->setText(QCoreApplication::translate("MainWindow", "Afsluiten", nullptr));
         actionOver_SpotLite->setText(QCoreApplication::translate("MainWindow", "Over SpotLite", nullptr));
         actionDatabase_optimalizeren->setText(QCoreApplication::translate("MainWindow", "Database optimaliseren", nullptr));
+        actionWhitelist_blacklist_status->setText(QCoreApplication::translate("MainWindow", "Whitelist/blacklist-status...", nullptr));
         actionHeaders_verwijderen_en_opnieuw_downloaden->setText(QCoreApplication::translate("MainWindow", "Headers verwijderen en opnieuw downloaden", nullptr));
         actionGebruikersinterface_aanpassen->setText(QCoreApplication::translate("MainWindow", "Gebruikersinterface aanpassen", nullptr));
         actionDonker_thema->setText(QCoreApplication::translate("MainWindow", "Donker thema", nullptr));
@@ -290,6 +354,7 @@ public:
         actionDonker_thema->setToolTip(QCoreApplication::translate("MainWindow", "Schakel tussen donker en licht", nullptr));
 #endif // QT_CONFIG(tooltip)
         actionAdresboek->setText(QCoreApplication::translate("MainWindow", "Adresboek", nullptr));
+        actionNZBGet_instellingen->setText(QCoreApplication::translate("MainWindow", "NZBGet-instellingen...", nullptr));
         actionSpotMobiel->setText(QCoreApplication::translate("MainWindow", "SpotMobiel", nullptr));
         actionDatabase_importeren->setText(QCoreApplication::translate("MainWindow", "Database importeren", nullptr));
         actionDatabase_exporteren->setText(QCoreApplication::translate("MainWindow", "Database exporteren", nullptr));
@@ -327,6 +392,15 @@ public:
         updateButton->setText(QCoreApplication::translate("MainWindow", "Update", nullptr));
         tabWidget_2->setTabText(tabWidget_2->indexOf(tab_2), QCoreApplication::translate("MainWindow", "Lijst", nullptr));
         tabWidget->setTabText(tabWidget->indexOf(tab), QCoreApplication::translate("MainWindow", "Nieuw", nullptr));
+        nzbgetStatusLabel->setText(QCoreApplication::translate("MainWindow", "NZBGet niet geconfigureerd.", nullptr));
+        QTreeWidgetItem *___qtreewidgetitem12 = nzbgetTree->headerItem();
+        ___qtreewidgetitem12->setText(3, QCoreApplication::translate("MainWindow", "Categorie", nullptr));
+        ___qtreewidgetitem12->setText(2, QCoreApplication::translate("MainWindow", "Info", nullptr));
+        ___qtreewidgetitem12->setText(1, QCoreApplication::translate("MainWindow", "Status", nullptr));
+        ___qtreewidgetitem12->setText(0, QCoreApplication::translate("MainWindow", "Naam", nullptr));
+        nzbgetShowActiveButton->setText(QCoreApplication::translate("MainWindow", "Actieve downloads", nullptr));
+        nzbgetShowHistoryButton->setText(QCoreApplication::translate("MainWindow", "Downloadgeschiedenis", nullptr));
+        tabWidget->setTabText(tabWidget->indexOf(nzbgetTab), QCoreApplication::translate("MainWindow", "NZBGet", nullptr));
         menuProgramma->setTitle(QCoreApplication::translate("MainWindow", "Programma", nullptr));
         menuOpties->setTitle(QCoreApplication::translate("MainWindow", "Opties", nullptr));
         menuHelp->setTitle(QCoreApplication::translate("MainWindow", "Help", nullptr));

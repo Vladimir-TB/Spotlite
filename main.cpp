@@ -12,8 +12,8 @@ int main(int argc, char *argv[])
     QApplication a(argc, argv);
     QLoggingCategory::setFilterRules(QStringLiteral("*.debug=false\n*.info=false"));
     a.setOrganizationName("SpotLite");
-    a.setApplicationName("Spotlite Release 3.0");
-    a.setApplicationDisplayName("Spotlite Release 3.0");
+    a.setApplicationName("Spotlite Release 3.1");
+    a.setApplicationDisplayName("Spotlite Release 3.1");
     QTranslator _qttrans;
     _qttrans.load("qt_nl.qm", /*QLibraryInfo::location(QLibraryInfo::TranslationsPath)*/ a.applicationDirPath() );
     QApplication::installTranslator(&_qttrans);

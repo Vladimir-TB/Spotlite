@@ -53,6 +53,7 @@
 <div id="box">
   <div id="toolbar"><span class="toolbar-message"></span><span id="toolbar-top"></span></div>
   <div id="version"></div>
+  <div id="bwlist-status" class="bwlist-status"></div>
   <div id="content">
   <table>
     <tr>
@@ -105,6 +106,23 @@
   }
 
   onWhiteList();
+  function showBwListStatus() {
+    var statusEl = document.getElementById("bwlist-status");
+    if (!statusEl) { return; }
+    if (typeof whiteList !== "undefined" && typeof blackList !== "undefined" &&
+        whiteList.length >= 0 && blackList.length >= 0) {
+      var info = "Whitelist geladen (" + whiteList.length + ") / blacklist (" + blackList.length + ")";
+      if (typeof bwListVersion !== "undefined") {
+        var dt = new Date(bwListVersion * 1000);
+        info += " - versie: " + dt.toLocaleString();
+      }
+      statusEl.textContent = info;
+    } else {
+      statusEl.className += " error";
+      statusEl.textContent = "Waarschuwing: geen whitelist/blacklist beschikbaar.";
+    }
+  }
+  showBwListStatus();
   
 	    // Improve description
     var imdbLink, mmLink;

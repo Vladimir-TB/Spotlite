@@ -163,6 +163,11 @@ SpotView::SpotView(SpotLite *sl, QTabWidget *tw, int spotid, const QString &titl
         _nzbButton->setText("Download NZB");
         _nzbButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         _nzbButton->setEnabled(false);
+        _nzbSendButton = new QToolButton(toolbar);
+        _nzbSendButton->setIcon(QIcon(":/icons/resultset_last.png"));
+        _nzbSendButton->setText(tr("Naar NZBGet"));
+        _nzbSendButton->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        _nzbSendButton->setEnabled(_sl && _sl->nzbGetConfigured());
         QToolButton *button2 = new QToolButton(toolbar);
         button2->setIcon(_replyIcon);
         button2->setText("Reactie plaatsen");
@@ -172,6 +177,7 @@ SpotView::SpotView(SpotLite *sl, QTabWidget *tw, int spotid, const QString &titl
         button3->setText("Verwijderen");
         button3->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         toolbar->addWidget(_nzbButton);
+        toolbar->addWidget(_nzbSendButton);
         toolbar->addWidget(button1);
         toolbar->addWidget(button2);
         toolbar->addWidget(button3);
@@ -186,6 +192,11 @@ SpotView::SpotView(SpotLite *sl, QTabWidget *tw, int spotid, const QString &titl
         connect(button2, SIGNAL(clicked()), this, SLOT(onReply()));
         connect(button3, SIGNAL(clicked()), this, SLOT(onDeleteSpot()));
         connect(_nzbButton, SIGNAL(clicked()), this, SLOT(onDownloadNZB()));
+        connect(_nzbSendButton, SIGNAL(clicked()), this, SLOT(onSendNzbToClient()));
+        connect(_sl, &SpotLite::nzbGetConfigChanged, this, [this]() {
+            if (_nzbSendButton)
+                _nzbSendButton->setEnabled(_sl && _sl->nzbGetConfigured());
+        });
         /* ---- */
         _tw->addTab(/*_web*/ _widget, _title.replace("&", "&&") );
     }
@@ -386,6 +397,12 @@ void SpotView::onArticleData(const QByteArray &msgid, QByteArray data)
             }
         }
 
+        if (_nzbSendRequested)
+        {
+            _nzbSendRequested = false;
+            _sendCachedNzbToClient();
+        }
+
         if (decoded)
             _updateHTML();
     }
@@ -483,6 +500,7 @@ inline QByteArray _fmtSize(double size)
 void SpotView::_updateHTML()
 {
     QByteArray linkurl, link, numfiles, firstfile, lastfile, cathtml, html = _mainTemplate;
+    _injectBwListScript(html);
 
     if (_website.isEmpty() )
     {
@@ -558,6 +576,40 @@ void SpotView::_updateHTML()
     html.replace("{categories}", cathtml);
     html.replace("{comments}", _commentsHTML);
     _displayHTML(html, (!_newsgroup.isEmpty() && _commentsToDownload.isEmpty() && _imgMSGID.isEmpty() ) );
+}
+
+void SpotView::_injectBwListScript(QByteArray &html)
+{
+    if (!_sl)
+        return;
+    QByteArray scriptData = _sl->bwListScript();
+    if (scriptData.isEmpty())
+    {
+        scriptData = "const whiteList = [];\nconst blackList = [];\nconst bwListVersion = 0;\n";
+    }
+
+    const QByteArray placeholder("<script type=\"text/javascript\" src=\"bwlist.xml.txt\"></script>");
+    QByteArray injected("<script type=\"text/javascript\">\n");
+    injected += scriptData;
+    injected += "\n</script>";
+
+    const int idx = html.indexOf(placeholder);
+    if (idx != -1)
+    {
+        html.replace(idx, placeholder.size(), injected);
+        return;
+    }
+
+    const QByteArray headTag("</head>");
+    const int headIdx = html.indexOf(headTag);
+    if (headIdx != -1)
+    {
+        html.insert(headIdx, injected);
+    }
+    else
+    {
+        html.prepend(injected);
+    }
 }
 
 inline void doXpath(QXmlQuery &q, QString &result, const char *query)
@@ -1314,6 +1366,48 @@ void SpotView::onDownloadNZB()
     _nzbSaveRequested = true;
     _sl->downloadArticle(_nzbMSGID, true);
     emit notice(0, tr("NZB wordt opgehaald..."));
+}
+
+void SpotView::onSendNzbToClient()
+{
+    if (!_sl || !_sl->nzbGetConfigured())
+    {
+        QMessageBox::information(_widget, tr("NZBGet"), tr("Configureer eerst NZBGet in Opties > NZBGet-instellingen."));
+        return;
+    }
+
+    if (_lastNzbData.isEmpty())
+    {
+        if (_nzbMSGID.isEmpty())
+        {
+            QMessageBox::information(_widget, tr("NZB niet beschikbaar"), tr("Geen NZB referentie voor deze spot."));
+            return;
+        }
+        _nzbSendRequested = true;
+        _sl->downloadArticle(_nzbMSGID, true);
+        emit notice(0, tr("NZB ophalen voor NZBGet..."));
+        return;
+    }
+
+    _sendCachedNzbToClient();
+}
+
+void SpotView::_sendCachedNzbToClient()
+{
+    if (!_sl || _lastNzbData.isEmpty())
+        return;
+    QString error;
+    if (_sl->sendNzbToNzbGet(_title, _lastNzbData, &error))
+    {
+        emit notice(0, tr("NZB naar NZBGet gestuurd."));
+    }
+    else
+    {
+        if (error.isEmpty())
+            error = tr("NZBGet heeft het bestand geweigerd.");
+        emit notice(0, error);
+        QMessageBox::warning(_widget, tr("NZBGet"), error);
+    }
 }
 
 void SpotView::onReply()

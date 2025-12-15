@@ -17,7 +17,7 @@ SpotLite is opgefrist naar Qt 5.15.2 met Qt WebEngine. Je krijgt een modernere r
 Vereisten:
 - Visual Studio 2022 Build Tools (x64) – `vcvars64.bat`.
 - Qt 5.15.2 MSVC 2019 x64 (pas pad aan).
-- (Optioneel) vcpkg libs (pas paden aan).
+- OpenSSL + zlib via vcpkg (bijv. `git clone https://github.com/microsoft/vcpkg`, `vcpkg install openssl:x64-windows zlib:x64-windows`). Zet `VCPKG_ROOT` of plaats de `vcpkg` map naast deze repo.
 
 Stappen:
 ```cmd
@@ -53,7 +53,7 @@ SpotLite has been refreshed to Qt 5.15.2 with Qt WebEngine. You get a modern ren
 Requirements:
 - Visual Studio 2022 Build Tools (x64) – `vcvars64.bat`.
 - Qt 5.15.2 MSVC 2019 x64 (adjust path).
-- (Optional) vcpkg libs (adjust paths).
+- OpenSSL + zlib provided by vcpkg (e.g. clone vcpkg, then `vcpkg install openssl:x64-windows zlib:x64-windows`). Set `VCPKG_ROOT` or place the `vcpkg` folder next to this repo.
 
 Steps:
 ```cmd

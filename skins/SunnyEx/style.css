@@ -160,6 +160,20 @@ display: none;
 	text-align: left;
 	border-color: #1a5698;
 }
+.bwlist-status {
+	margin: 10px 0;
+	padding: 8px 12px;
+	background: rgba(255,255,255,0.7);
+	border: 1px solid rgba(0,0,0,0.1);
+	font-size: 13px;
+	color: #1a4a73;
+	border-radius: 4px;
+}
+.bwlist-status.error {
+	color: #9b1c1c;
+	border-color: rgba(155,28,28,0.4);
+	background: rgba(255,226,226,0.8);
+}
 
 /*description*/
 #content td,
@@ -379,4 +393,3 @@ span.commentdate {
 		font-size: 12px;
 	}
 }
-

@@ -4,12 +4,14 @@
 #include <QMainWindow>
 #include <QModelIndex>
 #include <QMap>
+#include <QTimer>
+#include <QVector>
+#include "spotlite.h"
 
 namespace Ui {
     class MainWindow;
 }
 class SpotsModel;
-class SpotLite;
 class SpotView;
 class SpotMobile;
 class QTreeWidget;
@@ -36,6 +38,7 @@ protected:
     enum clickAction { doNothing=0, load=1, loadandopen =2};
     clickAction _onsingleclick, _ondoubleclick;
     //SpotMobile *_smobile;
+    QTimer _nzbgetRefreshTimer;
 
     void closeEvent (QCloseEvent *event);
     void initTree(QTreeWidget *tree);
@@ -53,6 +56,11 @@ protected:
     void importDB(const QString &filename);
     bool _trashCategory();
     QList<int> _selectedIDs();
+    QVector<NzbGetQueueEntry> _currentNzbQueue;
+    QVector<NzbGetHistoryEntry> _currentNzbHistory;
+    enum class NzbGetViewMode { Active, History };
+    NzbGetViewMode _nzbViewMode{NzbGetViewMode::Active};
+    bool _nzbTabInitialized{false};
 
 private slots:
     void on_actionDonker_thema_toggled(bool checked);
@@ -67,6 +75,8 @@ private slots:
     void on_actionDatabase_optimalizeren_triggered();
     void on_queryEdit_returnPressed();
     void on_actionOver_SpotLite_triggered();
+    void on_actionWhitelist_blacklist_status_triggered();
+    void on_actionNZBGet_instellingen_triggered();
     void on_tabWidget_tabCloseRequested(int index);
     void on_tableView_doubleClicked(QModelIndex index);
     void on_tableView_clicked(QModelIndex index);
@@ -93,6 +103,8 @@ private slots:
     void listUndelete();
     void emptyTrash();
     void closeCurrentTab();
+    void on_nzbgetShowActiveButton_clicked();
+    void on_nzbgetShowHistoryButton_clicked();
 
 public slots:
     void openFile(const QString &name);
@@ -102,6 +114,10 @@ private:
     void applyTheme(const QString &mode);
     QString darkStyleSheet() const;
     QString lightStyleSheet() const;
+    void refreshNzbGetQueue(bool userTriggered = false);
+    void refreshNzbGetHistory(bool userTriggered = false);
+    void refreshNzbGetView(bool userTriggered = false);
+    void updateNzbGetState();
 };
 
 #endif // MAINWINDOW_H
